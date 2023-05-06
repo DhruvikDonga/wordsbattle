@@ -1,0 +1,88 @@
+version: '3.8'
+
+services:
+
+  backend:
+    container_name: wordsbattle-server
+    image: wordsbattle-server
+    env_file:
+      - .env
+    # environment:
+    #   - POSTGRES_USER=${DB_USER}
+    #   - POSTGRES_PASSWORD=${DB_PASSWORD}
+    #   - POSTGRES_DB=${DB_NAME}
+    #   - DATABASE_HOST=${DB_HOST}
+    #   - DATABASE_PORT=${DB_PORT}
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      database:
+        condition: service_healthy
+
+    volumes: 
+      - .:/app
+    ports:
+      - 8080:8080 #HOST(localhost to access):CONTAINER
+    networks:
+      - wordsbattle-net
+
+  database:
+    image: postgres:15-alpine
+    container_name: wordsbattle-data
+    env_file:
+      - .env
+    # environment:
+    #   - POSTGRES_USER=${DB_USER}
+    #   - POSTGRES_PASSWORD=${DB_PASSWORD}
+    #   - POSTGRES_DB=${DB_NAME}
+    #   - DATABASE_HOST=${DB_HOST}
+    #   - DATABASE_PORT=${DB_PORT}
+    ports:
+      - '5432:5432'
+    volumes:
+      - ./pg_data:/var/lib/postgresql/data # pg_data is persistent volume independent of container (bind volume)
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U spuser -d wordsbattle"] # from .env will avoid race condition
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - wordsbattle-net
+
+  ## its a utility container to do upward migration
+  migrate:
+    image: migrate/migrate
+    container_name: db_migrations_up
+    depends_on:
+      database:
+        condition: service_healthy
+    volumes:
+      - ./pkg/migration:/migration #[yourcodebasepath:dockerpath]
+    # here instead of localhost as the host we use database as that is the name we gave to the postgres service
+    command:  -path=/migration/ -database postgres://spuser:SPuser96@wordsbattle-data/wordsbattle?sslmode=disable up 
+    #command: version
+    networks:
+      - wordsbattle-net
+    profiles:
+      - tools
+  
+  frontend-vue:
+    container_name: wordsbattle-ui
+    image: wordsbattle-ui
+    depends_on:
+      - backend
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    ports:
+      - 3030:3000
+    networks:
+      - wordsbattle-net
+
+networks:
+  wordsbattle-net:
+    driver: bridge
+    
+volumes:
+  pg_data:

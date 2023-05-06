@@ -1,0 +1,7 @@
+wordsbattle-client
+Dockerfile
+.dockerignore
+git
+pg_data
+scripts
+client
