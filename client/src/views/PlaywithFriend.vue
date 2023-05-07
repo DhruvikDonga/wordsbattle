@@ -669,7 +669,7 @@ export default {
         sendinGameMessage() { //send to websocket client in Go
             if(this.ingamemessage !== "") {
                
-                if (this.newletter !="") {
+                if (this.newletter !="") { //game is on and the bot send a letter
                     //console.log("triggered send message")
                     this.usercanentermessage = false
                     this.usercanentermessagetimer = null
@@ -681,13 +681,15 @@ export default {
                             {
                                 action:"send-message-by-bot",
                                 target:this.roomname,
-                                message: this.ingamemessage,
+                                message: this.ingamemessage.trim(),
                                 
                             })); //send it to websocket
+                        this.ingamemessage=""
                     }.bind(this))
                 } else {
                     this.waitForSocketConnection(this.ws, function() {
                         this.ws.send(JSON.stringify({action:"send-message",target:this.roomname,message: this.ingamemessage})); //send it to websocket
+                        this.ingamemessage=""
                     }.bind(this))
                 }
             }
