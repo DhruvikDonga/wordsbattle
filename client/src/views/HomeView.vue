@@ -50,21 +50,30 @@
                           class="border-opacity-25 mx-2"
                         ></v-divider>
                         <span style="font-size: x-small;">
-                          <v-icon
+                          <v-btn
                             size="small"
+                            density="compact"
                             color="dark"
                             icon="mdi-github"
-                          ></v-icon> |
-                          <v-icon
+                            href="https://github.com/DhruvikDonga/" 
+                            target="_blank"
+                          ></v-btn> |
+                          <v-btn
                             size="small"
+                            density="compact"
                             color="dark"
                             icon="mdi-linkedin"
-                          ></v-icon> |
-                          <v-icon
+                            href="https://www.linkedin.com/in/dhruvik-donga-9363a0172/" 
+                            target="_blank"
+                          ></v-btn> |
+                          <v-btn
                             size="small"
+                            density="compact"
                             color="dark"
                             icon="mdi-instagram"
-                          ></v-icon>
+                            href="https://www.instagram.com/dongadhruvik/" 
+                            target="_blank"
+                          ></v-btn>
                         </span>
                         
                     </div>
