@@ -283,6 +283,7 @@
                                     hide-details
                                     v-model="ingamemessage"
                                     :disabled="usercanentermessage ? false:true"
+                                    @keydown.enter.prevent="sendinGameMessage()"
                                     >
                                 </v-text-field>
                                 <v-btn :disabled="usercanentermessage ? false:true" class="px-2 mr-2" rounded variant="elevated" color="blue" @click="sendinGameMessage()"><v-icon icon="mdi-send"></v-icon></v-btn>
@@ -433,9 +434,9 @@ export default {
         firstName: '',
         firstNameRules: [
             value => {
-            if (value?.length > 3 && value?.length < 10) return true
-
-            return 'name must be between 3 to 10 letters.'
+                let username = value.trim()
+                if (username?.length > 3 && username?.length < 10) return true
+                return 'name must be between 3 to 10 letters.'
             },
             
         ],
