@@ -9,12 +9,14 @@
   },
   "dependencies": {
     "@mdi/font": "5.9.55",
+    "@videojs-player/vue": "^1.0.0",
     "core-js": "^3.8.3",
     "roboto-fontface": "*",
+    "video.js": "^7.21.4",
     "vue": "^3.2.13",
+    "vue-core-video-player": "^0.2.0",
     "vue-router": "^4.0.13",
-    "vue-video": "^0.1.7",
-    "vue-youtube-embed": "^2.2.2",
+    "vue-video-player": "^6.0.0",
     "vuetify": "^3.0.0-beta.0",
     "vuex": "^4.1.0",
     "webfontloader": "^1.0.0"
@@ -28,7 +30,6 @@
     "@vue/cli-service": "~5.0.0",
     "eslint": "^7.32.0",
     "eslint-plugin-vue": "^8.0.3",
-    "video.js": "^8.3.0",
     "vue-cli-plugin-vuetify": "~2.5.8",
     "webpack-plugin-vuetify": "^2.0.0-alpha.0"
   },
