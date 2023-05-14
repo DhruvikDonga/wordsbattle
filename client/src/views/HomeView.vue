@@ -79,14 +79,16 @@
                       This is a demo game played between 2 players and has all the rules covered
                       <v-row>
                         <v-col align-self="center">
-                          <v-card
+                          <!-- <v-card
                           class="mx-auto"
-                          max-width="900px"
+                          max-width="100%"
+                          max-height="300"
                           width="100%"
-                          >
-                            <video :width="700" :src="require('../assets/game-video.mp4')" controls>
-                            </video>
-                          </v-card>
+                          > -->
+                          <video-player src="require('../assets/game-video.mp4')" style="height: 30vh;" class="vjs-fluid vjs-layout-medium" dataType="video/mp4" controls :options="videoOptions"/>
+                            <!-- <video width="400" height="300" :src="require('../assets/game-video.mp4')" class="video-js vjs-defaultskin vjs-16-9" controls>
+                            </video> -->
+                          <!-- </v-card> -->
                         </v-col>
                       </v-row>
                     </li>
@@ -164,8 +166,8 @@
 
 <script>
 import router from "../router/index"
-//import VideoJsPlayer from '../components/VideoJsPlayer.vue';
-//import ws from "../websocket"
+import { VideoPlayer } from '@videojs-player/vue'
+import 'video.js/dist/video-js.css'
 export default {
   data() {
     return {
@@ -186,9 +188,9 @@ export default {
       }
     }
     },
-    // components: {
-    //   VideoJsPlayer
-    // },
+    components: {
+      VideoPlayer
+    },
     methods: {
       
       playwithfriend() {
