@@ -1,4 +1,4 @@
-package handler
+package cowgameclient
 
 import (
 	"fmt"
@@ -7,8 +7,6 @@ import (
 	"sort"
 	"strings"
 	"time"
-
-	"github.com/DhruvikDonga/wordsbattle/pkg/gameserver"
 )
 
 // room server is a goroutine created by the chatServer when "join-room" message is catched by read-pump it either joins the user to exisiting room or create a new room
@@ -34,7 +32,7 @@ type GameRoomMetadata struct { //this can change as per game and it should be in
 type Room struct {
 	name                    string
 	clients                 map[*Client]bool
-	wsServer                *WsServer //keep reference of webserver to every client
+	wsServer                *LobbyServer //keep reference of webserver to every client
 	register                chan *Client
 	unregister              chan *Client
 	broadcast               chan *Message //message send in a room
@@ -47,7 +45,7 @@ type Room struct {
 	playerlimit             int
 }
 
-func NewRoom(name string, gameServer *WsServer, roommaker *Client) *Room {
+func NewRoom(name string, gameServer *LobbyServer, roommaker *Client) *Room {
 	return &Room{
 		name:                    name,
 		wsServer:                gameServer,
@@ -347,7 +345,7 @@ func (room *Room) reportuserattemptturn() {
 	currentplayer := room.gamemetadata.whichclientturn
 	nextplayer := room.getnextplayer(currentplayer)
 	wordslist := room.gamemetadata.wordslist
-	status := gameserver.MatchWord(guessedword, wordslist, letter[0])
+	status := MatchWord(guessedword, wordslist, letter[0])
 
 	resmessage := ""
 	if status == "word-correct" {

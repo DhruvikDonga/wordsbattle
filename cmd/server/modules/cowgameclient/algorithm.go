@@ -1,4 +1,4 @@
-package gameserver
+package cowgameclient
 
 var Worddictionary = map[string]bool{}
 

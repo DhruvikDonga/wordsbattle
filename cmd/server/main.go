@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"github.com/DhruvikDonga/wordsbattle/cmd/server/handler"
+	"github.com/DhruvikDonga/wordsbattle/cmd/server/modules/cowgameclient"
 	"github.com/DhruvikDonga/wordsbattle/pkg/db"
-	"github.com/DhruvikDonga/wordsbattle/pkg/gameserver"
 	"github.com/DhruvikDonga/wordsbattle/util"
 )
 
@@ -47,7 +47,7 @@ func main() {
 	fileScanner := bufio.NewScanner(readFile)
 	fileScanner.Split(bufio.ScanLines)
 	for fileScanner.Scan() {
-		gameserver.Worddictionary[fileScanner.Text()] = true
+		cowgameclient.Worddictionary[fileScanner.Text()] = true
 	}
 	readFile.Close()
 

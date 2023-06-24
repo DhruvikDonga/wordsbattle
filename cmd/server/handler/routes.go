@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"net/http"
 
+	"github.com/DhruvikDonga/wordsbattle/cmd/server/modules/cowgameclient"
 	"github.com/DhruvikDonga/wordsbattle/pkg/db"
 	"github.com/DhruvikDonga/wordsbattle/util"
 	"github.com/go-chi/chi/v5"
@@ -42,12 +43,12 @@ func RouteService(app *App) http.Handler {
 	}))
 
 	// start websocket server
-	wsServer := NewWebSocketServer()
+	wsServer := cowgameclient.NewLobbyServer()
 	go wsServer.Run()
 
-	// initialize websocket connection
+	// initialize websocket connection clash of words
 	r.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
-		ServeWs(wsServer, w, r)
+		cowgameclient.ServeWs(wsServer, w, r)
 	})
 
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {

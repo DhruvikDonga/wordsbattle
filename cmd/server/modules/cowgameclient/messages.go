@@ -1,11 +1,11 @@
-package handler
+package cowgameclient
 
 import (
 	"encoding/json"
 	"log"
 )
 
-// different messages WsServer can send to writepump by send channel using broadcast channel
+// different messages LobbyServer can send to writepump by send channel using broadcast channel
 
 const (
 	SendMessageAction           = "send-message"
