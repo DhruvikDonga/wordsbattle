@@ -25,6 +25,8 @@ graph TD
     D --> F[Concurrent client writer]
     B ==> G[Game Server]
     G -.->|manage the rooms and clients <br> Manage the lobby for random rooms| H[Room Server <small><i>id:-axGrw</i></small>]
+    E -->|Usecases <br>Lobby server for random games connect two users create a room|G
+    G -->|Usecases <br>Give user notificatons incase of room is not connected due to reasons|F
     B --> H
     E ==>|send the data from client to room server| H
     H ==> F
