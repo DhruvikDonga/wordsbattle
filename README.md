@@ -32,7 +32,7 @@ graph TD
     H ==> F
     F ==>|Send data to all the clients in list| A
     H <--> I[Game State Manager <br> <small><ul><li>Game algorithm</li><li>Send Game State to the <br>UI client on time ticker</li><li><b>Process the data of the user</b></li></ul> </small>]
-    H -.->|Send game state data <br> <-ticker.C|A
+    H -.->|Send game state data <br> <-ticker.C to all clients in a room|F
 ```
 ## Demo
 
