@@ -4,8 +4,9 @@ import (
 	"database/sql"
 	"net/http"
 
-	"github.com/DhruvikDonga/wordsbattle/cmd/server/modules/cowgameclient"
+	"github.com/DhruvikDonga/wordsbattle/internal/modules/cowgameclient"
 	"github.com/DhruvikDonga/wordsbattle/pkg/db"
+	"github.com/DhruvikDonga/wordsbattle/pkg/gogamelink"
 	"github.com/DhruvikDonga/wordsbattle/util"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -28,7 +29,7 @@ func NewApp(pgdb *sql.DB, conf util.Config) *App {
 
 func RouteService(app *App) http.Handler {
 	r := chi.NewRouter()
-
+	//messagehandler := cowgameclient.ClientCustomMessage{}
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
@@ -43,12 +44,22 @@ func RouteService(app *App) http.Handler {
 	}))
 
 	// start websocket server
-	wsServer := cowgameclient.NewLobbyServer()
-	go wsServer.Run()
+	// wsServer := cowgameclient.NewLobbyServer()
+	// go wsServer.Run()
 
-	// initialize websocket connection clash of words
+	// link new game server
+	roomgameendticker := cowgameclient.RoomGameBot{}
+	lobbyserv := gogamelink.RunNewLobbyServer("cowgame", roomgameendticker)
+	messagehandler := cowgameclient.ClientCustomMessage{}
+
+	// // initialize websocket connection clash of words
+	// r.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+	// 	cowgameclient.ServeWs(wsServer, w, r)
+	// })
+
+	// // initialize websocket link cowgame connection clash of words
 	r.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
-		cowgameclient.ServeWs(wsServer, w, r)
+		gogamelink.ServeWs(lobbyserv, w, r, messagehandler)
 	})
 
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {

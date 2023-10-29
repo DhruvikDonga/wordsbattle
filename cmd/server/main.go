@@ -11,8 +11,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/DhruvikDonga/wordsbattle/cmd/server/handler"
-	"github.com/DhruvikDonga/wordsbattle/cmd/server/modules/cowgameclient"
+	"github.com/DhruvikDonga/wordsbattle/internal/handler"
+	"github.com/DhruvikDonga/wordsbattle/internal/modules/cowgameclient"
 	"github.com/DhruvikDonga/wordsbattle/pkg/db"
 	"github.com/DhruvikDonga/wordsbattle/util"
 )
