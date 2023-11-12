@@ -7,8 +7,8 @@ import (
 )
 
 // handleJoinRoomMessage will handle joining a room.register <- Client
-func (c *client) HandleJoinRoomMessage(roomname string) {
-	room := c.wsServer.findRoom(roomname) //this will be usefull is player is playing with a friend
+func (c *client) AddClientToRoom(roomname string) {
+	room := c.wsServer.FindRoom(roomname) //this will be usefull is player is playing with a friend
 	// room := client.wsServe.findidealroom() //go through list of ideal rooms  first then create a new random room
 	if room == nil {
 		f := func(r rune) bool {
@@ -24,7 +24,7 @@ func (c *client) HandleJoinRoomMessage(roomname string) {
 			c.wsServer.broadcastToClient <- map[*client][]byte{c: msg}
 			return
 		}
-		room = c.wsServer.createRoom(roomname, c, 10, false, c.wsServer.roomStateHandler)
+		room = c.wsServer.CreateRoom(roomname, c, 10, false, c.wsServer.roomStateHandler)
 	}
 	if !room.gamemetadata.gamestarted && !room.gamemetadata.gameended {
 		if len(room.clients) < room.playerlimit {
@@ -54,7 +54,7 @@ func (c *client) HandleJoinRoomMessage(roomname string) {
 func (c *client) HandleSendMessageToRoom(roomname string, message []byte) {
 	// The send-message action, this will send messages to a specific room now.
 	// Which room wil depend on the message Target
-	if room := c.wsServer.findRoom(roomname); room != nil {
+	if room := c.wsServer.FindRoom(roomname); room != nil {
 		room.broadcast <- message
 	} else {
 		log.Println("room not found")
@@ -64,7 +64,7 @@ func (c *client) HandleSendMessageToRoom(roomname string, message []byte) {
 func (c *client) HandleSendMessageToBotOfRoom(roomname string, message []byte) {
 	// The send-message action, this will send messages to a specific room now.
 	// Which room wil depend on the message Target
-	if room := c.wsServer.findRoom(roomname); room != nil {
+	if room := c.wsServer.FindRoom(roomname); room != nil {
 		room.broadcastToBot <- message
 	} else {
 		log.Println("room not found")
@@ -73,7 +73,7 @@ func (c *client) HandleSendMessageToBotOfRoom(roomname string, message []byte) {
 func (c *client) HandleSendMessageToClientInRoom(roomname string, clientids []string, message []byte) {
 	c.wsServer.RLock()
 	defer c.wsServer.RUnlock()
-	if room := c.wsServer.findRoom(roomname); room != nil {
+	if room := c.wsServer.FindRoom(roomname); room != nil {
 		clientmessage := make(map[string][]byte)
 		for _, cid := range clientids {
 			if val, ok := room.clients[cid]; val && ok {
@@ -107,41 +107,6 @@ func (c *client) HandleSendMessageToClients(clientids []string, message []byte) 
 		lobbyServer.broadcastToClient <- clientmessage
 	}
 
-}
-
-func (c *client) HandleJoinRandomRoomMessage(roomname string) {
-	c.wsServer.Lock()
-	defer c.wsServer.Unlock()
-	var room *room
-	server := c.wsServer
-	for _, findroom := range server.rooms {
-		if len(findroom.clients) < findroom.playerlimit && findroom.randomgame && !findroom.gamemetadata.gamestarted && !findroom.gamemetadata.gameended {
-			room = findroom
-			log.Println("found random room", len(findroom.clients))
-			break
-
-		}
-	}
-	if room == nil {
-		log.Println("Not found a random room creating a new one:-", roomname)
-		if len(roomname) != 10 {
-			message := &Message{
-				Action:  FailJoinRoomNotification,
-				Message: fmt.Sprintf("Room name %v is not valid ", roomname),
-			}
-			msg := message.encode()
-			c.wsServer.broadcastToClient <- map[*client][]byte{c: msg}
-		}
-
-		room = c.wsServer.createRoom(roomname, c, 2, true, c.wsServer.roomStateHandler)
-
-	}
-	if !room.gamemetadata.gamestarted && !room.gamemetadata.gameended {
-		log.Println("Found random room :-", room.name)
-		c.room = room
-		c.ingame = true
-		room.register <- c
-	}
 }
 
 // HandleLeaveRoomMessage will handle leaving a room.unregister <- Client

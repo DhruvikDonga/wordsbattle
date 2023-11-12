@@ -41,38 +41,38 @@ func (server *LobbyServer) Run() {
 	for {
 		select {
 		case client := <-server.register:
-			server.registerClient(client) //add the client
+			server.RegisterClient(client) //add the client
 			server.broadcastActiveMessage()
 		case client := <-server.unregister:
-			server.unregisterClient(client) //remove the client
+			server.UnregisterClient(client) //remove the client
 			server.broadcastActiveMessage()
 
 		case message := <-server.broadcast: //this broadcaster will broadcast to all clients
 			log.Println("Websocket broadcast", message)
-			server.broadcastToClients(message) //broadcast the message from readpump
+			server.BroadcastToClients(message) //broadcast the message from readpump
 
 		case message := <-server.broadcastToClient: //this broadcaster will broadcast to particular clients
 			log.Println("Websocket broadcast", message)
-			server.broadcastToAClient(message)
+			server.BroadcastToAClient(message)
 		}
 	}
 }
 
-func (server *LobbyServer) registerClient(client *client) {
+func (server *LobbyServer) RegisterClient(client *client) {
 
 	server.clients[client.Slug] = client
 }
 
-func (server *LobbyServer) unregisterClient(client *client) {
+func (server *LobbyServer) UnregisterClient(client *client) {
 	delete(server.clients, client.Slug)
 }
 
-func (server *LobbyServer) broadcastToClients(message []byte) {
+func (server *LobbyServer) BroadcastToClients(message []byte) {
 	for _, client := range server.clients {
 		client.send <- message //Client
 	}
 }
-func (server *LobbyServer) broadcastToAClient(message map[*client][]byte) { //this message should be containing one key and one value though
+func (server *LobbyServer) BroadcastToAClient(message map[*client][]byte) { //this message should be containing one key and one value though
 	for client, message := range message {
 		client.send <- message //Client
 	}
@@ -88,10 +88,10 @@ func (server *LobbyServer) broadcastActiveMessage() {
 	} else {
 		log.Println(string(jsonStr))
 	}
-	server.broadcastToClients(jsonStr)
+	server.BroadcastToClients(jsonStr)
 }
 
-func (server *LobbyServer) findRoom(name string) *room {
+func (server *LobbyServer) FindRoom(name string) *room {
 	server.RLock()
 	defer server.RUnlock()
 	var foundroom *room
@@ -106,7 +106,7 @@ func (server *LobbyServer) findRoom(name string) *room {
 	return foundroom
 }
 
-func (server *LobbyServer) createRoom(name string, client *client, playerlimit int, israndom bool, roomStateHandler RoomStateHandler) *room {
+func (server *LobbyServer) CreateRoom(name string, client *client, playerlimit int, israndom bool, roomStateHandler RoomStateHandler) *room {
 	server.Lock()
 	defer server.Unlock()
 	room := NewRoom(name, server, client, roomStateHandler)
@@ -118,7 +118,7 @@ func (server *LobbyServer) createRoom(name string, client *client, playerlimit i
 	return room
 
 }
-func (server *LobbyServer) deleteRoom(r *room) {
+func (server *LobbyServer) DeleteRoom(r *room) {
 	server.Lock()
 	defer server.Unlock()
 	log.Println("room deleted", r.name)

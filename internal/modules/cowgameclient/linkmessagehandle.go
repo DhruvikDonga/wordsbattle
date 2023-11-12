@@ -62,7 +62,7 @@ func (custommessage ClientCustomMessage) HandleMessage(c gogamelink.Client, json
 	switch custommessage.Action {
 	case JoinRoomAction:
 		roomname := custommessage.Message //this message string will have roomname string
-		c.HandleJoinRoomMessage(roomname)
+		c.AddClientToRoom(roomname)
 
 	case JoinRandomRoomAction:
 		roomname := custommessage.Message

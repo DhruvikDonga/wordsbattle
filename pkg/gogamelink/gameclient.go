@@ -3,6 +3,7 @@ package gogamelink
 //Frontend[ws->write] ----> websocket pipe ---> Go(WSClient readpump <-broadcast channel) ---> (Websocket server(channel broadcast) ---> broadcast channel and broadcasttoAllClient(for loop <-send(channel of writepump part of client)) --> Go(WSClient writepump (to send over other client) --> /ws message --> frontend of other client ---> readmessage buffer and back to first
 
 import (
+	"fmt"
 	"log"
 	"math/rand"
 	"net/http"
@@ -53,10 +54,10 @@ type ClientStorer interface {
 }
 
 type Client interface {
-	//HandleJoinRoomMessage handles to joining of client to room
+	//AddClientToRoom handles to joining of client to room
 	//add it in HandleMessage to handle the room join
 	//takes roomname in its argument
-	HandleJoinRoomMessage(roomname string)
+	AddClientToRoom(roomname string)
 
 	//HandleJoinRandomRoomMessage handles to joining of client to a random room
 	//add it in HandleMessage to handle the join random room
@@ -170,6 +171,41 @@ func (client *client) readPump() {
 	}
 }
 
+func (c *client) HandleJoinRandomRoomMessage(roomname string) {
+	c.wsServer.Lock()
+	defer c.wsServer.Unlock()
+	var room *room
+	server := c.wsServer
+	for _, findroom := range server.rooms {
+		if len(findroom.clients) < findroom.playerlimit && findroom.randomgame && !findroom.gamemetadata.gamestarted && !findroom.gamemetadata.gameended {
+			room = findroom
+			log.Println("found random room", len(findroom.clients))
+			break
+
+		}
+	}
+	if room == nil {
+		log.Println("Not found a random room creating a new one:-", roomname)
+		if len(roomname) != 10 {
+			message := &Message{
+				Action:  FailJoinRoomNotification,
+				Message: fmt.Sprintf("Room name %v is not valid ", roomname),
+			}
+			msg := message.encode()
+			c.wsServer.broadcastToClient <- map[*client][]byte{c: msg}
+		}
+
+		room = c.wsServer.CreateRoom(roomname, c, 2, true, c.wsServer.roomStateHandler)
+
+	}
+	if !room.gamemetadata.gamestarted && !room.gamemetadata.gameended {
+		log.Println("Found random room :-", room.name)
+		c.room = room
+		c.ingame = true
+		room.register <- c
+	}
+}
+
 // writePump goroutine handles sending the messages to the connected client. It runs in an endless loop waiting for new messages in the client.send channel. When receiving new messages it writes them to the client, if there are multiple messages available they will be combined in one write.
 // writePump is also responsible for keeping the connection alive by sending ping messages to the client with the interval given in pingPeriod. If the client does not respond with a pong, the connection is closed.
 func (client *client) writePump() {
@@ -227,6 +263,7 @@ func (client *client) Disconnect() {
 // ServeWs handles websocket requests from clients requests.
 func ServeWs(wsServer *LobbyServer, w http.ResponseWriter, r *http.Request, messagehandler ClientStorer) {
 
+	upgrader.CheckOrigin = func(r *http.Request) bool { return true }
 	conn, err := upgrader.Upgrade(w, r, w.Header())
 	if err != nil {
 		log.Println(err)

@@ -94,6 +94,13 @@ func (r *room) runRoom() {
 		case c := <-r.register:
 			r.registerClientinRoom(c.Slug) //add the client
 			r.notifyClientJoined(c.Slug)   // notify to clients in room
+			if r.randomgame {              //notify the roomname to client
+				message := &Message{
+					Action:  FoundRandomRoomNotification,
+					Message: fmt.Sprintf(r.name),
+				}
+				c.send <- message.encode()
+			}
 
 		case c := <-r.unregister:
 			r.unregisterClientinRoom(c.Slug) //remove the client
@@ -113,7 +120,7 @@ func (r *room) runRoom() {
 			log.Println("Check if room is to be deleted")
 			if len(r.clients) == 0 {
 				log.Println("room shutdown", r.name)
-				r.wsServer.deleteRoom(r)
+				r.wsServer.DeleteRoom(r)
 				return
 			}
 		case message := <-r.broadcast:
@@ -124,7 +131,7 @@ func (r *room) runRoom() {
 			r.MessageRecievedByBot()
 		case <-r.stoproom:
 			log.Println("room shutdown", r.name)
-			r.wsServer.deleteRoom(r)
+			r.wsServer.DeleteRoom(r)
 			return
 		}
 	}
