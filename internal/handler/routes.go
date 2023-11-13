@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/DhruvikDonga/wordsbattle/internal/modules/cowgameclient"
+	"github.com/DhruvikDonga/wordsbattle/internal/modules/game"
 	"github.com/DhruvikDonga/wordsbattle/pkg/db"
 	"github.com/DhruvikDonga/wordsbattle/pkg/gogamelink"
 	"github.com/DhruvikDonga/wordsbattle/pkg/gogamemesh"
@@ -57,8 +58,11 @@ func RouteService(app *App) http.Handler {
 	// r.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 	// 	cowgameclient.ServeWs(wsServer, w, r)
 	// })
-
-	ms := gogamemesh.NewMeshServer("cowgame")
+	roomdata := &game.RoomData{
+		IsRandomGame: false,
+		PlayerLimit:  10,
+	}
+	ms := gogamemesh.NewMeshServer("cowgame", &gogamemesh.MeshServerConfig{DirectBroadCast: true}, roomdata)
 	ms.RunMeshServer()
 	// // initialize websocket link cowgame connection clash of words
 	r.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {

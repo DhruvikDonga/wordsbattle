@@ -9,6 +9,10 @@ const (
 	MeshGlobalRoom = "mesh-global" //MeshGlobalRoom is a room where a client gets joined when he connects to a websocket
 )
 
+type MeshServerConfig struct {
+	DirectBroadCast bool
+}
+
 type MeshServer interface {
 	GetClients() map[string]*client
 
@@ -37,12 +41,18 @@ type MeshServer interface {
 	//ReceiveMessage is to receive message from readpumps of the clients this can be used to manipulate
 	//returns a receive only channel
 	RecieveMessage() <-chan *Message
+
+	//EventTriggers Track
+	//Get the updates on the clients in room changes and act accordingly
+	//Returns receive only channel map[roomname]map[clientlist]bool
+	EventTriggers() <-chan map[string]map[string]bool
 }
 
 // meshServer runs like workers which are light weight instead of using rooms approach this reduces weight on rooms side
 // this helps for a user to connect simultaneously multiple rooms in a single go
 type meshServer struct {
 	gamename      string
+	isbroadcaston bool
 	mu            sync.RWMutex
 	clients       map[string]*client
 	rooms         map[string]*room
@@ -57,13 +67,17 @@ type meshServer struct {
 	clientJoinedRoom chan []string //[0]-->roomslug [1]-->clientslug
 	clientLeftRoom   chan []string //[0]-->roomslug [1]-->clientslugs
 
-	processMessage chan *Message
+	processMessage       chan *Message
+	clientsinroomtracker chan map[string]map[string]bool
+
+	roomdata RoomData
 }
 
 // NewMeshServer initialize new websocket server
-func NewMeshServer(name string) *meshServer {
+func NewMeshServer(name string, meshconf *MeshServerConfig, rd RoomData) *meshServer {
 	return &meshServer{
 		gamename:      name,
+		isbroadcaston: meshconf.DirectBroadCast,
 		clients:       make(map[string]*client),
 		rooms:         make(map[string]*room),
 		clientsinroom: make(map[string]map[string]bool),
@@ -77,7 +91,10 @@ func NewMeshServer(name string) *meshServer {
 		clientJoinedRoom: make(chan []string),
 		clientLeftRoom:   make(chan []string),
 
-		processMessage: make(chan *Message), //unbuffered channel unlike of send of client cause it will recieve only when readpump sends in it else it will block
+		processMessage:       make(chan *Message),                   //unbuffered channel unlike of send of client cause it will recieve only when readpump sends in it else it will block
+		clientsinroomtracker: make(chan map[string]map[string]bool), //view into the maps is your room affected by client changes
+
+		roomdata: rd,
 	}
 }
 
@@ -106,7 +123,9 @@ func (server *meshServer) RunMeshServer() {
 
 		case message := <-server.processMessage: //this broadcaster will broadcast to all clients
 			log.Println("Websocket broadcast", message)
-			server.BroadcastMessage(message) //broadcast the message from readpump
+			if server.isbroadcaston {
+				server.BroadcastMessage(message) //broadcast the message from readpump
+			}
 
 		}
 	}
@@ -124,8 +143,16 @@ func (server *meshServer) GetClientsInRoom() map[string]map[string]bool {
 	return server.clientsinroom
 }
 
-func (server *meshServer) PushMessage() <-chan *Message {
+func (server *meshServer) PushMessage() chan<- *Message {
 	return server.processMessage
+}
+
+func (server *meshServer) RecieveMessage() <-chan *Message {
+	return server.processMessage
+}
+
+func (server *meshServer) EventTriggers() <-chan map[string]map[string]bool {
+	return server.clientsinroomtracker
 }
 
 func (server *meshServer) ConnectClient(client *client) {
@@ -140,6 +167,7 @@ func (server *meshServer) DisconnectClient(client *client) {
 	defer server.mu.Unlock()
 	for roomname, clientsmap := range server.clientsinroom {
 		delete(clientsmap, client.slug)
+		server.clientsinroomtracker <- server.clientsinroom
 		if len(clientsmap) == 0 && roomname != MeshGlobalRoom {
 			delete(server.clientsinroom, roomname)
 		}
@@ -151,7 +179,7 @@ func (server *meshServer) DisconnectClient(client *client) {
 
 func (server *meshServer) CreateRoom(name string, client string) {
 
-	room := NewRoom(name, client, server)
+	room := NewRoom(name, client, server.roomdata, server)
 	server.mu.Lock()
 	defer server.mu.Unlock()
 	server.rooms[room.slug] = room //add it to server list of rooms
@@ -161,7 +189,10 @@ func (server *meshServer) CreateRoom(name string, client string) {
 func (server *meshServer) DeleteRoom(name string) {
 	server.mu.Lock()
 	defer server.mu.Unlock()
-	delete(server.rooms, name)
+	if r, ok := server.rooms[name]; ok {
+		close(r.stopped)
+		delete(server.rooms, name)
+	}
 
 }
 
@@ -190,6 +221,7 @@ func (server *meshServer) JoinClientRoom(roomname string, clientname string) {
 	for roomkey := range server.clientsinroom {
 		if roomkey == roomname {
 			server.clientsinroom[roomkey][clientname] = true
+			server.clientsinroomtracker <- server.clientsinroom
 			break
 		}
 	}
@@ -201,6 +233,7 @@ func (server *meshServer) RemoveClientRoom(roomname string, clientname string) {
 	for roomkey, clientsmap := range server.clientsinroom {
 		if roomkey == roomname {
 			delete(clientsmap, clientname)
+			server.clientsinroomtracker <- server.clientsinroom
 			if len(clientsmap) == 0 && roomname != MeshGlobalRoom {
 				delete(server.clientsinroom, roomname)
 			}
