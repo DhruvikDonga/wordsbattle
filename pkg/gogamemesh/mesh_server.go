@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	MeshGlobalRoom = "mesh-global" //MeshGlobalRoom is a room where a client gets joined when he connects to a websocket
+	MeshGlobalRoom = "mesh-global" //MeshGlobalRoom is a room where a client gets joined when he connects to a websocket . MeshGlobalRoom facilitates creation of rooms
 )
 
 type MeshServerConfig struct {
@@ -24,13 +24,13 @@ type MeshServer interface {
 
 	DisconnectClient(client *client)
 
-	CreateRoom(name string, client string)
+	CreateRoom(name string, client string, rd RoomData)
 
 	DeleteRoom(name string)
 
 	BroadcastMessage(message *Message)
 
-	JoinClientRoom(roomname string, clientname string)
+	JoinClientRoom(roomname string, clientname string, rd RoomData)
 
 	RemoveClientRoom(roomname string, clientname string)
 
@@ -75,7 +75,7 @@ type meshServer struct {
 
 // NewMeshServer initialize new websocket server
 func NewMeshServer(name string, meshconf *MeshServerConfig, rd RoomData) *meshServer {
-	return &meshServer{
+	server := &meshServer{
 		gamename:      name,
 		isbroadcaston: meshconf.DirectBroadCast,
 		clients:       make(map[string]*client),
@@ -96,6 +96,17 @@ func NewMeshServer(name string, meshconf *MeshServerConfig, rd RoomData) *meshSe
 
 		roomdata: rd,
 	}
+	r := &room{
+		slug:      MeshGlobalRoom,
+		createdby: "Gawd",
+		stopped:   make(chan struct{}),
+		roomdata:  rd,
+		server:    server,
+	}
+	go func() {
+		server.roomdata.HandleRoomData(r, server)
+	}()
+	return server
 }
 
 // Run mesh server accepting various requests
@@ -110,13 +121,13 @@ func (server *meshServer) RunMeshServer() {
 			server.DisconnectClient(client) //remove the client
 
 		case roomcreate := <-server.roomCreate:
-			server.CreateRoom(roomcreate[0], roomcreate[1]) //add the client
+			server.CreateRoom(roomcreate[0], roomcreate[1], server.roomdata) //add the client
 
 		case roomname := <-server.roomDelete:
 			server.DeleteRoom(roomname) //remove the client
 
 		case roomclient := <-server.clientJoinedRoom:
-			server.JoinClientRoom(roomclient[0], roomclient[1]) //add the client to room
+			server.JoinClientRoom(roomclient[0], roomclient[1], server.roomdata) //add the client to room
 
 		case roomclient := <-server.clientLeftRoom:
 			server.RemoveClientRoom(roomclient[0], roomclient[1]) //remove the client from room
@@ -159,7 +170,7 @@ func (server *meshServer) ConnectClient(client *client) {
 	server.mu.Lock()
 	defer server.mu.Unlock()
 	server.clients[client.slug] = client
-	server.JoinClientRoom(MeshGlobalRoom, client.slug) //join this default to a room this is a global room kind of main lobby
+	server.JoinClientRoom(MeshGlobalRoom, client.slug, server.roomdata) //join this default to a room this is a global room kind of main lobby
 }
 
 func (server *meshServer) DisconnectClient(client *client) {
@@ -177,7 +188,7 @@ func (server *meshServer) DisconnectClient(client *client) {
 
 }
 
-func (server *meshServer) CreateRoom(name string, client string) {
+func (server *meshServer) CreateRoom(name string, client string, rd RoomData) {
 
 	room := NewRoom(name, client, server.roomdata, server)
 	server.mu.Lock()
@@ -215,16 +226,27 @@ func (server *meshServer) BroadcastMessage(message *Message) {
 
 }
 
-func (server *meshServer) JoinClientRoom(roomname string, clientname string) {
+func (server *meshServer) JoinClientRoom(roomname string, clientname string, rd RoomData) {
 	server.mu.Lock()
 	defer server.mu.Unlock()
 	for roomkey := range server.clientsinroom {
 		if roomkey == roomname {
 			server.clientsinroom[roomkey][clientname] = true
 			server.clientsinroomtracker <- server.clientsinroom
-			break
+			return
+
 		}
 	}
+	//incase no such room is there create a new one and add it
+	server.CreateRoom(roomname, clientname, rd)
+	for roomkey := range server.clientsinroom {
+		if roomkey == roomname {
+			server.clientsinroom[roomkey][clientname] = true
+			server.clientsinroomtracker <- server.clientsinroom
+			return
+		}
+	}
+
 }
 
 func (server *meshServer) RemoveClientRoom(roomname string, clientname string) {
