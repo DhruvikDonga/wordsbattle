@@ -7,7 +7,6 @@ import (
 	"github.com/DhruvikDonga/wordsbattle/internal/modules/cowgameclient"
 	"github.com/DhruvikDonga/wordsbattle/internal/modules/game"
 	"github.com/DhruvikDonga/wordsbattle/pkg/db"
-	"github.com/DhruvikDonga/wordsbattle/pkg/gogamelink"
 	"github.com/DhruvikDonga/wordsbattle/pkg/gogamemesh"
 	"github.com/DhruvikDonga/wordsbattle/util"
 	"github.com/go-chi/chi/v5"
@@ -45,19 +44,15 @@ func RouteService(app *App) http.Handler {
 		MaxAge:           300, // Maximum value not ignored by any of major browsers
 	}))
 
-	// start websocket server
-	// wsServer := cowgameclient.NewLobbyServer()
-	// go wsServer.Run()
+	//start websocket server
+	wsServer := cowgameclient.NewLobbyServer()
+	go wsServer.Run()
 
-	// link new game server
-	roomgameendticker := cowgameclient.RoomGameBot{}
-	lobbyserv := gogamelink.RunNewLobbyServer("cowgame", roomgameendticker)
-	messagehandler := cowgameclient.ClientCustomMessage{}
+	// initialize websocket connection clash of words
+	r.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+		cowgameclient.ServeWs(wsServer, w, r)
+	})
 
-	// // initialize websocket connection clash of words
-	// r.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
-	// 	cowgameclient.ServeWs(wsServer, w, r)
-	// })
 	roomdata := &game.RoomData{
 		IsRandomGame: false,
 		PlayerLimit:  10,
@@ -66,7 +61,7 @@ func RouteService(app *App) http.Handler {
 	ms.RunMeshServer()
 	// // initialize websocket link cowgame connection clash of words
 	r.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
-		gogamelink.ServeWs(lobbyserv, w, r, messagehandler)
+		gogamemesh.ServeWs(ms, w, r)
 	})
 
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {

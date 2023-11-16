@@ -44,6 +44,10 @@ func (r *RoomData) HandleRoomData(room gogamemesh.Room, server gogamemesh.MeshSe
 			ret := r.handleServermessages(room, server, message)
 			server.BroadcastMessage(ret)
 		}
+		if message.Target == roomname {
+			ret := r.handleGameRoommessages(room, server, message)
+			server.BroadcastMessage(ret)
+		}
 
 	case clientsinroom := <-server.EventTriggers():
 		log.Println(clientsinroom[roomname])
@@ -54,6 +58,7 @@ func (r *RoomData) HandleRoomData(room gogamemesh.Room, server gogamemesh.MeshSe
 	}
 }
 
+// global room
 func (r *RoomData) handleServermessages(room gogamemesh.Room, server gogamemesh.MeshServer, message *gogamemesh.Message) *gogamemesh.Message {
 	ret := &gogamemesh.Message{}
 	var messagebody map[string]interface{}
@@ -73,4 +78,11 @@ func (r *RoomData) handleServermessages(room gogamemesh.Room, server gogamemesh.
 
 	}
 	return ret
+}
+
+// game room
+func (r *RoomData) handleGameRoommessages(room gogamemesh.Room, server gogamemesh.MeshServer, message *gogamemesh.Message) *gogamemesh.Message {
+	ret := &gogamemesh.Message{}
+	return ret
+
 }
