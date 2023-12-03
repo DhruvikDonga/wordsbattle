@@ -27,6 +27,15 @@ import { Transition } from 'vue';
           </Transition>
 
         </router-view>
+        <!-- <router-view v-slot="{ Component }">
+          <Transition mode="out-in">
+            <keep-alive exclude="PlaywithFriendGM">
+              <component :is="Component" />
+            </keep-alive>
+
+          </Transition>
+
+        </router-view> -->
         </v-container>
       </v-main>
     <v-footer max-height="200"  app class="d-flex justify-start ">

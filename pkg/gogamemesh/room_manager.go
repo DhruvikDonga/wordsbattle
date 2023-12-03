@@ -1,5 +1,7 @@
 package gogamemesh
 
+import "log"
+
 type RoomData interface {
 	//HandleRoomData use your struct which has all the data related to room and do the changes accordingly
 	HandleRoomData(room Room, server MeshServer)
@@ -28,7 +30,7 @@ func NewRoom(roomslug string, clientslug string, rd RoomData, srv *meshServer) *
 		roomdata:  rd,
 		server:    srv,
 	}
-
+	log.Println("room created ", roomslug)
 	go func() {
 		r.roomdata.HandleRoomData(r, srv)
 	}()

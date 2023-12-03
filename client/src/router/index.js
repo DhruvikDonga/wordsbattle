@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
 import PlaywithFriend from '../views/PlaywithFriend.vue'
+import PlaywithFriendGM from '../views/PlaywithFriendGM.vue'
 
 const routes = [
   {
@@ -19,6 +20,20 @@ const routes = [
     path: '/play-random',
     name: 'randomroom',
     component: PlaywithFriend,
+    meta: { transition: 'slide-left' },
+
+  },
+  {
+    path: '/play-gm',
+    name: 'roomgm',
+    component: PlaywithFriendGM,
+    meta: { transition: 'slide-left' },
+
+  },
+  {
+    path: '/play-random-gm',
+    name: 'randomroomgm',
+    component: PlaywithFriendGM,
     meta: { transition: 'slide-left' },
 
   },

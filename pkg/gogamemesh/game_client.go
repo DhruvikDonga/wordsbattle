@@ -96,7 +96,7 @@ func (client *client) readPump() {
 		if err := json.Unmarshal(jsonMessage, &message); err != nil {
 			log.Printf("Error on unmarshal JSON message %s", err)
 		}
-
+		message.Sender = client.slug
 		log.Println("JSON-MESSAGE-readpump", string(jsonMessage))
 		client.meshServer.processMessage <- &message
 
@@ -157,8 +157,7 @@ func (client *client) disconnect() {
 // ServeWs handles websocket requests from clients requests.
 func ServeWs(meshserv *meshServer, w http.ResponseWriter, r *http.Request) {
 
-	upgrader.CheckOrigin = func(r *http.Request) bool { return true }
-	conn, err := upgrader.Upgrade(w, r, w.Header())
+	conn, err := websocket.Upgrade(w, r, nil, 4096, 4096)
 	if err != nil {
 		log.Println(err)
 		return
@@ -172,8 +171,7 @@ func ServeWs(meshserv *meshServer, w http.ResponseWriter, r *http.Request) {
 
 	client := newClient(conn, meshserv, name)
 
-	log.Println("New client joined the hub")
-	log.Println(client)
+	log.Println("New client ", client.slug, " joined the hub")
 
 	//log.Println(client.Gamemetadata.Color)
 	go client.readPump()

@@ -1,7 +1,6 @@
 package game
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 
@@ -27,6 +26,12 @@ type ClientProps struct { //this can depend on a inroom basis so it changes
 }
 
 type RoomData struct {
+	Wordslist        map[string]bool
+	ClientProperties map[string]*ClientProps
+	Rounds           int
+}
+
+type GameRoomData struct {
 	IsRandomGame     bool
 	PlayerLimit      int
 	ClientScore      map[string]int
@@ -37,20 +42,17 @@ type RoomData struct {
 
 func (r *RoomData) HandleRoomData(room gogamemesh.Room, server gogamemesh.MeshServer) {
 	roomname := room.GetRoomSlugInfo()
+	log.Println("Handeling data for ", roomname)
 	select {
 	case message := <-server.RecieveMessage():
-		if message.Target == roomname && roomname == gogamemesh.MeshGlobalRoom {
-			log.Println(message)
-			ret := r.handleServermessages(room, server, message)
-			server.BroadcastMessage(ret)
-		}
+		//log.Println(server.GetRooms())
 		if message.Target == roomname {
-			ret := r.handleGameRoommessages(room, server, message)
-			server.BroadcastMessage(ret)
+			//log.Println(message)
+			r.handleServermessages(room, server, message)
 		}
 
-	case clientsinroom := <-server.EventTriggers():
-		log.Println(clientsinroom[roomname])
+	case clientevent := <-server.EventTriggers():
+		log.Println(clientevent[0])
 
 	case <-room.RoomStopped():
 		log.Println("Room is stopped so stop the handler")
@@ -59,30 +61,75 @@ func (r *RoomData) HandleRoomData(room gogamemesh.Room, server gogamemesh.MeshSe
 }
 
 // global room
-func (r *RoomData) handleServermessages(room gogamemesh.Room, server gogamemesh.MeshServer, message *gogamemesh.Message) *gogamemesh.Message {
-	ret := &gogamemesh.Message{}
-	var messagebody map[string]interface{}
+func (r *RoomData) handleServermessages(room gogamemesh.Room, server gogamemesh.MeshServer, message *gogamemesh.Message) {
 
 	// Unmarshal the JSON data into the map
-	err := json.Unmarshal(message.MessageBody, &messagebody)
-	if err != nil {
-		fmt.Println("Error:", err)
-	}
+	log.Println("game name:-", server.GetGameName(), message.Action)
 	switch message.Action {
-	case JoinRoomAction:
-		rd := &RoomData{
+	case "join-room":
+		rd := &GameRoomData{
 			IsRandomGame: false,
-			PlayerLimit:  messagebody["playerlimit"].(int),
+			PlayerLimit:  int(message.MessageBody["playerlimit"].(float64)),
 		}
-		server.JoinClientRoom(messagebody["roomname"].(string), message.Sender, rd)
+		log.Println("JoinRoomAction ", message.Sender, message.MessageBody, room.GetRoomSlugInfo())
+		roomname := message.MessageBody["roomname"].(string)
+		//var joinroomrequest []interface{}
+		//joinroomrequest = append(joinroomrequest, roomname, message.Sender, rd)
+		//server.JoinARoom() <- joinroomrequest
+		server.JoinClientRoom(roomname, message.Sender, rd)
+		log.Println("request send to join a room")
+		// message := &gogamemesh.Message{
+		// 	Action: "join-room-notify",
+		// 	Target: message.MessageBody["roomname"].(string),
+		// 	MessageBody: map[string]interface{}{
+		// 		"newmessage": fmt.Sprintf("%s %s joined the room cowgame by mesh", r.ClientProperties[message.Sender].Name, message.Sender),
+		// 	},
+		// 	Sender:         message.Sender,
+		// 	IsTargetClient: false,
+		// }
+
+		// server.BroadcastMessage(message)
 
 	}
-	return ret
 }
 
 // game room
-func (r *RoomData) handleGameRoommessages(room gogamemesh.Room, server gogamemesh.MeshServer, message *gogamemesh.Message) *gogamemesh.Message {
+func (r *GameRoomData) handleGameRoommessages(room gogamemesh.Room, server gogamemesh.MeshServer, message *gogamemesh.Message) *gogamemesh.Message {
 	ret := &gogamemesh.Message{}
 	return ret
 
+}
+
+func (r *GameRoomData) HandleRoomData(room gogamemesh.Room, server gogamemesh.MeshServer) {
+	roomname := room.GetRoomSlugInfo()
+	log.Println("Handeling data for ", roomname)
+
+	select {
+	case message := <-server.RecieveMessage():
+
+		if message.Target == roomname {
+			ret := r.handleGameRoommessages(room, server, message)
+			server.BroadcastMessage(ret)
+		}
+
+	case clientsinroom := <-server.EventTriggers():
+		log.Println(clientsinroom[0], clientsinroom[1], clientsinroom[2])
+		switch clientsinroom[0] {
+		case "client-joined-room":
+			message := &gogamemesh.Message{
+				Action: "join-room-notify",
+				Target: clientsinroom[1],
+				MessageBody: map[string]interface{}{
+					"newmessage": fmt.Sprintf("%s %s joined the room cowgame by mesh", r.ClientProperties[clientsinroom[2]].Name, clientsinroom[2]),
+				},
+				Sender:         clientsinroom[2],
+				IsTargetClient: false,
+			}
+
+			server.BroadcastMessage(message)
+		}
+	case <-room.RoomStopped():
+		log.Println("Room is stopped so stop the handler")
+		return
+	}
 }
