@@ -11,29 +11,41 @@ type Room interface {
 	GetRoomSlugInfo() string
 
 	RoomStopped() <-chan struct{}
+
+	ConsumeRoomMessage() <-chan *Message
+
+	EventTriggers() <-chan []string
 }
 
 type room struct {
-	server    *meshServer
-	slug      string
-	createdby string //client id who created it
-	stopped   chan struct{}
-	roomdata  RoomData
+	id                int
+	server            *meshServer
+	slug              string
+	createdby         string //client id who created it
+	stopped           chan struct{}
+	roomdata          RoomData
+	consumeMessage    chan *Message
+	clientInRoomEvent chan []string
 }
 
 func NewRoom(roomslug string, clientslug string, rd RoomData, srv *meshServer) *room {
+	srv.roomcnt += 1
 
 	r := &room{
-		slug:      roomslug,
-		createdby: clientslug,
-		stopped:   make(chan struct{}),
-		roomdata:  rd,
-		server:    srv,
+		id:                srv.roomcnt,
+		slug:              roomslug,
+		createdby:         clientslug,
+		stopped:           make(chan struct{}),
+		roomdata:          rd,
+		server:            srv,
+		consumeMessage:    make(chan *Message, 1),
+		clientInRoomEvent: make(chan []string, 1),
 	}
-	log.Println("room created ", roomslug)
 	go func() {
 		r.roomdata.HandleRoomData(r, srv)
 	}()
+	log.Println("room created and running", roomslug)
+
 	return r
 }
 
@@ -43,4 +55,12 @@ func (room *room) GetRoomSlugInfo() string {
 
 func (room *room) RoomStopped() <-chan struct{} {
 	return room.stopped
+}
+
+func (room *room) ConsumeRoomMessage() <-chan *Message {
+	return room.consumeMessage
+}
+
+func (room *room) EventTriggers() <-chan []string {
+	return room.clientInRoomEvent
 }

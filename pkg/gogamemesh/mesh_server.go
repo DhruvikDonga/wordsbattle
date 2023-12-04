@@ -58,12 +58,12 @@ type MeshServer interface {
 type meshServer struct {
 	mu sync.RWMutex
 
-	gamename      string
-	isbroadcaston bool
-	clients       map[string]*client
-	rooms         map[string]*room
-	clientsinroom map[string]map[string]bool
-
+	gamename         string
+	isbroadcaston    bool
+	clients          map[string]*client
+	rooms            map[string]*room
+	clientsinroom    map[string]map[string]bool
+	roomcnt          int
 	clientConnect    chan *client
 	clientDisconnect chan *client
 
@@ -84,6 +84,7 @@ func NewMeshServer(name string, meshconf *MeshServerConfig, rd RoomData) *meshSe
 	server := &meshServer{
 		mu:            sync.RWMutex{},
 		gamename:      name,
+		roomcnt:       0,
 		isbroadcaston: meshconf.DirectBroadCast,
 		clients:       make(map[string]*client),
 		rooms:         make(map[string]*room),
@@ -104,16 +105,25 @@ func NewMeshServer(name string, meshconf *MeshServerConfig, rd RoomData) *meshSe
 		roomdata: rd,
 	}
 	r := &room{
-		slug:      MeshGlobalRoom,
-		createdby: "Gawd",
-		stopped:   make(chan struct{}),
-		roomdata:  rd,
-		server:    server,
+		id:                server.roomcnt,
+		slug:              MeshGlobalRoom,
+		createdby:         "Gawd",
+		stopped:           make(chan struct{}),
+		roomdata:          rd,
+		server:            server,
+		consumeMessage:    make(chan *Message, 1),
+		clientInRoomEvent: make(chan []string, 1),
 	}
+	server.roomcnt += 1
+
 	server.rooms[MeshGlobalRoom] = r
 	go func() {
 		server.roomdata.HandleRoomData(r, server)
 	}()
+	go func() {
+		server.RunMeshServer()
+	}()
+
 	return server
 }
 
@@ -141,12 +151,19 @@ func (server *meshServer) RunMeshServer() {
 		case roomclient := <-server.clientLeftRoom:
 			server.RemoveClientRoom(roomclient[0], roomclient[1]) //remove the client from room
 
-			// case message := <-server.processMessage: //this broadcaster will broadcast to all clients
-			// 	log.Println("Websocket broadcast", message)
-			// 	if server.isbroadcaston {
-			// 		server.BroadcastMessage(message) //broadcast the message from readpump
-			// 	}
+		case message := <-server.processMessage: //this broadcaster will broadcast to all clients
+			log.Println("Websocket broadcast", message)
+			if server.isbroadcaston {
+				server.BroadcastMessage(message) //broadcast the message from readpump
+			}
+			roomtosend := server.rooms[message.Target]
+			select {
+			case roomtosend.consumeMessage <- message:
+				log.Println("Room name ", roomtosend.slug, "Created by ", roomtosend.createdby)
+			default:
+				log.Println("Failed to send  to Room name ", roomtosend.slug, "Created by ", roomtosend.createdby)
 
+			}
 		}
 	}
 }
@@ -217,9 +234,10 @@ func (server *meshServer) DisconnectClient(client *client) {
 func (server *meshServer) CreateRoom(name string, client string, rd RoomData) {
 
 	room := NewRoom(name, client, server.roomdata, server)
+
 	server.mu.Lock()
-	defer server.mu.Unlock()
 	server.rooms[room.slug] = room //add it to server list of rooms
+	server.mu.Unlock()
 
 }
 
@@ -254,24 +272,17 @@ func (server *meshServer) BroadcastMessage(message *Message) {
 }
 
 func (server *meshServer) JoinClientRoom(roomname string, clientname string, rd RoomData) {
-	server.mu.Lock()
-	log.Println("client ", clientname, " joined a room ", roomname)
-	for roomkey := range server.rooms {
-		if roomkey == roomname {
-			if clientinroom, ok := server.clientsinroom[roomkey]; ok {
-				clientinroom[clientname] = true
-			} else {
-				server.clientsinroom[roomkey] = map[string]bool{}
-				server.clientsinroom[roomkey][clientname] = true
-			}
-			server.clientInRoomEvent <- []string{"client-joined-room", roomname, clientname}
-			server.mu.Unlock()
-			return
+	noroom := false
+	server.mu.RLock()
+	if _, ok := server.rooms[roomname]; !ok {
+		noroom = true
 
-		}
 	}
-	//incase no such room is there create a new one and add it
-	server.CreateRoom(roomname, clientname, rd)
+	server.mu.RUnlock()
+	if noroom {
+		server.CreateRoom(roomname, clientname, rd)
+	}
+	server.mu.Lock()
 	for roomkey := range server.rooms {
 		if roomkey == roomname {
 			if clientinroom, ok := server.clientsinroom[roomkey]; ok {
@@ -280,7 +291,13 @@ func (server *meshServer) JoinClientRoom(roomname string, clientname string, rd 
 				server.clientsinroom[roomkey] = map[string]bool{}
 				server.clientsinroom[roomkey][clientname] = true
 			}
-			server.clientInRoomEvent <- []string{"client-joined-room", roomname, clientname}
+			select {
+			case server.rooms[roomname].clientInRoomEvent <- []string{"client-joined-room", roomname, clientname}:
+				log.Println("client ", clientname, " joined a room ", roomname)
+			default:
+				log.Println("Failed to trigger join room trigger for client ", clientname, " in room", roomname)
+			}
+
 			server.mu.Unlock()
 			return
 
