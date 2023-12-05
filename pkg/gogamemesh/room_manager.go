@@ -35,7 +35,7 @@ func NewRoom(roomslug string, clientslug string, rd RoomData, srv *meshServer) *
 		id:                srv.roomcnt,
 		slug:              roomslug,
 		createdby:         clientslug,
-		stopped:           make(chan struct{}),
+		stopped:           make(chan struct{}, 1),
 		roomdata:          rd,
 		server:            srv,
 		consumeMessage:    make(chan *Message, 1),

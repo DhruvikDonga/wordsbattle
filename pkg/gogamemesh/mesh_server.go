@@ -99,8 +99,8 @@ func NewMeshServer(name string, meshconf *MeshServerConfig, rd RoomData) *meshSe
 		clientJoinedRoom: make(chan []interface{}),
 		clientLeftRoom:   make(chan []string),
 
-		processMessage:    make(chan *Message), //unbuffered channel unlike of send of client cause it will recieve only when readpump sends in it else it will block
-		clientInRoomEvent: make(chan []string), //view into the maps is your room affected by client changes
+		processMessage:    make(chan *Message),    //unbuffered channel unlike of send of client cause it will recieve only when readpump sends in it else it will block
+		clientInRoomEvent: make(chan []string, 1), //view into the maps is your room affected by client changes
 
 		roomdata: rd,
 	}
@@ -152,16 +152,16 @@ func (server *meshServer) RunMeshServer() {
 			server.RemoveClientRoom(roomclient[0], roomclient[1]) //remove the client from room
 
 		case message := <-server.processMessage: //this broadcaster will broadcast to all clients
-			log.Println("Websocket broadcast", message)
+			//log.Println("Websocket broadcast", message)
 			if server.isbroadcaston {
 				server.BroadcastMessage(message) //broadcast the message from readpump
 			}
 			roomtosend := server.rooms[message.Target]
 			select {
 			case roomtosend.consumeMessage <- message:
-				log.Println("Room name ", roomtosend.slug, "Created by ", roomtosend.createdby)
+				//log.Println("Room name ", roomtosend.slug, "Created by ", roomtosend.createdby)
 			default:
-				log.Println("Failed to send  to Room name ", roomtosend.slug, "Created by ", roomtosend.createdby)
+				log.Println("Failed to send  to Room name ", roomtosend.slug)
 
 			}
 		}
@@ -219,11 +219,26 @@ func (server *meshServer) DisconnectClient(client *client) {
 	server.mu.Lock()
 	defer server.mu.Unlock()
 	for roomname, clientsmap := range server.clientsinroom {
-		delete(clientsmap, client.slug)
-		server.clientInRoomEvent <- []string{"client-left-room", roomname, client.slug}
-		if len(clientsmap) == 0 && roomname != MeshGlobalRoom {
-			delete(server.clientsinroom, roomname)
-			server.DeleteRoom(roomname)
+		if _, ok := clientsmap[client.slug]; ok {
+			delete(clientsmap, client.slug)
+			log.Println("removing client from the room")
+			if roomname != MeshGlobalRoom {
+				select {
+				case server.rooms[roomname].clientInRoomEvent <- []string{"client-left-room", roomname, client.slug}:
+					log.Println("client ", client.slug, " left a room ", roomname)
+				default:
+					log.Println("Failed to trigger left room trigger for client ", client.slug, " in room", roomname)
+				}
+				if len(clientsmap) == 0 && roomname != MeshGlobalRoom {
+					delete(server.clientsinroom, roomname)
+					//server.DeleteRoom(roomname)
+					if r, ok := server.rooms[roomname]; ok {
+						log.Println("Closing room")
+						close(r.stopped)
+						delete(server.rooms, roomname)
+					}
+				}
+			}
 		}
 	}
 
@@ -233,7 +248,7 @@ func (server *meshServer) DisconnectClient(client *client) {
 
 func (server *meshServer) CreateRoom(name string, client string, rd RoomData) {
 
-	room := NewRoom(name, client, server.roomdata, server)
+	room := NewRoom(name, client, rd, server)
 
 	server.mu.Lock()
 	server.rooms[room.slug] = room //add it to server list of rooms
@@ -257,12 +272,14 @@ func (server *meshServer) BroadcastMessage(message *Message) {
 	jsonBytes := message.Encode()
 	log.Println("Broadcasting message ----", string(jsonBytes))
 	if message.IsTargetClient {
-		client := server.clients[message.Target]
+
+		client := server.clients[message.Sender]
+		log.Println("Pushing to client :-", client.slug)
 
 		client.send <- jsonBytes
 	} else {
 		clients := server.clientsinroom[message.Target]
-
+		log.Println("Pushing to clients :-", clients)
 		for c := range clients {
 			client := server.clients[c]
 			client.send <- jsonBytes
@@ -280,6 +297,7 @@ func (server *meshServer) JoinClientRoom(roomname string, clientname string, rd 
 	}
 	server.mu.RUnlock()
 	if noroom {
+		log.Printf("Create room Details: %+v\n ", rd)
 		server.CreateRoom(roomname, clientname, rd)
 	}
 	server.mu.Lock()

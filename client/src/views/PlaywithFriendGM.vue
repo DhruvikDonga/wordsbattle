@@ -449,15 +449,19 @@ export default {
         handleNewMessage(event) {
             let data = event.data;
             data = data.split(/\r?\n/);
-            console.log(data)
             for (let i = 0; i < data.length; i++) {
                 let msg = JSON.parse(data[i]);
                 // display the message in the correct room.
-                
+                console.log(msg)
+
                 if (msg.action=="join-room-notify" && msg.target == this.roomname) {
+                    
                     this.alerts.push(msg)
                 }
                 if (msg.action=="know-yourself" && msg.target == this.roomname) {
+                    this.waitForSocketConnection(this.ws, function() {
+                    this.ws.send(JSON.stringify({ action: 'set-client-name', message_body:{ setname: this.firstName}, target: this.roomname }));
+                }.bind(this));
                     this.youruserslug = msg.sender.slug
                 }
                 if (msg.action=="fail-join-room-notify" && msg.target == this.roomname) {
@@ -473,15 +477,15 @@ export default {
                 }
                 if (msg.action=="client-list-notify" && msg.target == this.roomname) {
                     this.users=[]
-                    this.playercount = msg.clientlist.length
-                    //console.log(msg)
+                    this.playercount = msg.message_body.clientsinroomessage.length
+                    console.log(msg.message_body.clientsinroomessage)
 
-                    msg.clientlist.forEach(element => {
+                    msg.message_body.clientsinroomessage.forEach(element => {
                         this.user = {
                             username : element.name,
                             userslug : element.slug,
-                            color: element.clientgamemetadata.color,
-                            score: element.clientgamemetadata.score
+                            color: element.color,
+                            score: element.score
                         }
                         
                         this.users.push(this.user)
@@ -603,7 +607,7 @@ export default {
                     var format = /[ `!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~]/;
                     if (format.test(this.roomname)==false){
                         this.waitForSocketConnection(this.ws, function() {
-                            this.ws.send(JSON.stringify({ action: 'join-room', message_body: {roomname: this.roomname,playerlimit:10} , target: 'mesh-global' }));
+                            this.ws.send(JSON.stringify({ action: 'join-room', message_body: {roomname: this.roomname,playerlimit:10,setplayername: this.firstName} , target: 'mesh-global' }));
                         }.bind(this));
                     } else {
                         alert("Roomname not valid")
@@ -644,14 +648,12 @@ export default {
         async sendNewName() {
             const { valid } =  await this.$refs.form.validate()
             if (valid) {
-                this.waitForSocketConnection(this.ws, function() {
-                    this.ws.send(JSON.stringify({ action: 'client-name', message: this.firstName }));
-                }.bind(this));
                 this.nameformdone = true
                 this.connectToGameRoom()
             }
         },
         notSendNewName() {
+            this.firstName = "Guest"
             this.nameformdone = true
             this.connectToGameRoom()
         },
