@@ -10,6 +10,8 @@ type RoomData interface {
 type Room interface {
 	GetRoomSlugInfo() string
 
+	GetRoomMakerInfo() string
+
 	RoomStopped() <-chan struct{}
 
 	ConsumeRoomMessage() <-chan *Message
@@ -51,6 +53,10 @@ func NewRoom(roomslug string, clientslug string, rd RoomData, srv *meshServer) *
 
 func (room *room) GetRoomSlugInfo() string {
 	return room.slug
+}
+
+func (room *room) GetRoomMakerInfo() string {
+	return room.createdby
 }
 
 func (room *room) RoomStopped() <-chan struct{} {

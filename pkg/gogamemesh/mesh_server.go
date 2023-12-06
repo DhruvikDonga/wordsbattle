@@ -189,7 +189,10 @@ func (server *meshServer) GetRooms() []string {
 }
 
 func (server *meshServer) GetClientsInRoom() map[string]map[string]bool {
-	return server.clientsinroom
+	server.mu.Lock()
+	res := server.clientsinroom
+	server.mu.Unlock()
+	return res
 }
 
 func (server *meshServer) PushMessage() chan<- *Message {
@@ -327,15 +330,24 @@ func (server *meshServer) JoinClientRoom(roomname string, clientname string, rd 
 func (server *meshServer) RemoveClientRoom(roomname string, clientname string) {
 	server.mu.Lock()
 	defer server.mu.Unlock()
-	for roomkey, clientsmap := range server.clientsinroom {
-		if roomkey == roomname {
-			delete(clientsmap, clientname)
-			server.clientInRoomEvent <- []string{"client-left-room", roomname, clientname}
-			if len(clientsmap) == 0 && roomname != MeshGlobalRoom {
-				delete(server.clientsinroom, roomname)
-				server.DeleteRoom(roomname)
+	if clientsmap, ok := server.clientsinroom[roomname]; ok {
+		delete(clientsmap, clientname)
+		server.clientInRoomEvent <- []string{"client-left-room", roomname, clientname}
+		select {
+		case server.rooms[roomname].clientInRoomEvent <- []string{"client-left-room", roomname, clientname}:
+			log.Println("client ", clientname, " left a room ", roomname)
+		default:
+			log.Println("Failed to trigger left room trigger for client ", clientname, " in room", roomname)
+		}
+		if len(clientsmap) == 0 && roomname != MeshGlobalRoom {
+			delete(server.clientsinroom, roomname)
+			//server.DeleteRoom(roomname)
+			if r, ok := server.rooms[roomname]; ok {
+				log.Println("Closing room")
+				close(r.stopped)
+				delete(server.rooms, roomname)
 			}
-			break
 		}
 	}
+
 }

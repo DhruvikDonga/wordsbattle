@@ -73,7 +73,7 @@
                 <v-alert
                     type="error"
                     closable
-                >{{ alert.message }}</v-alert>
+                >{{ alert.message_body.message }}</v-alert>
             </v-col>
 
             <!-- This column contains containers room occupied(start game)/unoccupied(share the url)/fail to enter(occupied so no user entry) -->
@@ -462,7 +462,7 @@ export default {
                     this.waitForSocketConnection(this.ws, function() {
                     this.ws.send(JSON.stringify({ action: 'set-client-name', message_body:{ setname: this.firstName}, target: this.roomname }));
                 }.bind(this));
-                    this.youruserslug = msg.sender.slug
+                    this.youruserslug = msg.message_body.sender
                 }
                 if (msg.action=="fail-join-room-notify" && msg.target == this.roomname) {
                     this.gotthrownout = true
@@ -607,7 +607,7 @@ export default {
                     var format = /[ `!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~]/;
                     if (format.test(this.roomname)==false){
                         this.waitForSocketConnection(this.ws, function() {
-                            this.ws.send(JSON.stringify({ action: 'join-room', message_body: {roomname: this.roomname,playerlimit:10,setplayername: this.firstName} , target: 'mesh-global' }));
+                            this.ws.send(JSON.stringify({ action: 'join-room', message_body: {roomname: this.roomname,playerlimit:3,setplayername: this.firstName} , target: 'mesh-global' }));
                         }.bind(this));
                     } else {
                         alert("Roomname not valid")
