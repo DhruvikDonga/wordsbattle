@@ -1,4 +1,4 @@
-package gogamemesh
+package gomeshstream
 
 import (
 	"encoding/json"

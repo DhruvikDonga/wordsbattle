@@ -3,7 +3,7 @@ package game
 import (
 	"log"
 
-	"github.com/DhruvikDonga/wordsbattle/pkg/gogamemesh"
+	"github.com/DhruvikDonga/wordsbattle/pkg/gomeshstream"
 )
 
 const (
@@ -26,7 +26,7 @@ type RoomData struct {
 	Rounds           int
 }
 
-func (r *RoomData) HandleRoomData(room gogamemesh.Room, server gogamemesh.MeshServer) {
+func (r *RoomData) HandleRoomData(room gomeshstream.Room, server gomeshstream.MeshServer) {
 	roomname := room.GetRoomSlugInfo()
 	r.Slug = roomname
 	log.Println("Handeling data Server for ", roomname, server.GetGameName())
@@ -60,7 +60,7 @@ func (r *RoomData) HandleRoomData(room gogamemesh.Room, server gogamemesh.MeshSe
 }
 
 // global room
-func (r *RoomData) handleServermessages(room gogamemesh.Room, server gogamemesh.MeshServer, message *gogamemesh.Message) {
+func (r *RoomData) handleServermessages(room gomeshstream.Room, server gomeshstream.MeshServer, message *gomeshstream.Message) {
 
 	// Unmarshal the JSON data into the map
 	log.Println("game name:-", server.GetGameName(), message.Action)
@@ -74,22 +74,35 @@ func (r *RoomData) handleServermessages(room gogamemesh.Room, server gogamemesh.
 		}
 		log.Println("JoinRoomAction ", message.Sender, message.MessageBody, room.GetRoomSlugInfo())
 		roomname := message.MessageBody["roomname"].(string)
-		//var joinroomrequest []interface{}
-		//joinroomrequest = append(joinroomrequest, roomname, message.Sender, rd)
-		//server.JoinARoom() <- joinroomrequest
-		server.JoinClientRoom(roomname, message.Sender, &rd)
-		log.Println("request send to join a room")
-		// message := &gogamemesh.Message{
-		// 	Action: "join-room-notify",
-		// 	Target: message.MessageBody["roomname"].(string),
-		// 	MessageBody: map[string]interface{}{
-		// 		"newmessage": fmt.Sprintf("%s %s joined the room cowgame by mesh", r.ClientProperties[message.Sender].Name, message.Sender),
-		// 	},
-		// 	Sender:         message.Sender,
-		// 	IsTargetClient: false,
-		// }
+		inroomcnt := len(server.GetClientsInRoom()[roomname])
+		log.Println("Players in the room before new added ", roomname, " are", inroomcnt, " and player limit is ", rd.PlayerLimit)
+		if inroomcnt < rd.PlayerLimit {
+			server.JoinClientRoom(roomname, message.Sender, &rd)
+			log.Println("request send to join a room")
+		} else {
 
-		// server.BroadcastMessage(message)
+			clientsinroom := []string{"join-room", roomname, message.Sender}
+			rd.FailToJoinRoomNotify("room-full", clientsinroom, room, server)
+		}
 
 	}
+}
+
+func (r *RoomData) FailToJoinRoomNotify(reason string, clientsinroom []string, room gomeshstream.Room, server gomeshstream.MeshServer) {
+	reasonmsg := ""
+	log.Println("Client removed", clientsinroom[2])
+	if reason == "room-full" {
+		reasonmsg = "Failed to join the room its occupied"
+	}
+	message := &gomeshstream.Message{
+		Action: "fail-join-room-notify",
+		Target: clientsinroom[1],
+		MessageBody: map[string]interface{}{
+			"message": reasonmsg,
+		},
+		Sender:         clientsinroom[2],
+		IsTargetClient: true,
+	}
+
+	server.BroadcastMessage(message)
 }

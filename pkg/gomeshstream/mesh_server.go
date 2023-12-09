@@ -1,4 +1,4 @@
-package gogamemesh
+package gomeshstream
 
 import (
 	"log"
@@ -90,16 +90,16 @@ func NewMeshServer(name string, meshconf *MeshServerConfig, rd RoomData) *meshSe
 		rooms:         make(map[string]*room),
 		clientsinroom: make(map[string]map[string]bool),
 
-		clientConnect:    make(chan *client),
-		clientDisconnect: make(chan *client),
+		clientConnect:    make(chan *client, 1),
+		clientDisconnect: make(chan *client, 1),
 
-		roomCreate: make(chan []string),
-		roomDelete: make(chan string),
+		roomCreate: make(chan []string, 1),
+		roomDelete: make(chan string, 1),
 
-		clientJoinedRoom: make(chan []interface{}),
-		clientLeftRoom:   make(chan []string),
+		clientJoinedRoom: make(chan []interface{}, 1),
+		clientLeftRoom:   make(chan []string, 1),
 
-		processMessage:    make(chan *Message),    //unbuffered channel unlike of send of client cause it will recieve only when readpump sends in it else it will block
+		processMessage:    make(chan *Message, 1), //unbuffered channel unlike of send of client cause it will recieve only when readpump sends in it else it will block
 		clientInRoomEvent: make(chan []string, 1), //view into the maps is your room affected by client changes
 
 		roomdata: rd,
@@ -276,7 +276,7 @@ func (server *meshServer) BroadcastMessage(message *Message) {
 	log.Println("Broadcasting message ----", string(jsonBytes))
 	if message.IsTargetClient {
 
-		client := server.clients[message.Sender]
+		client := server.clients[message.Target]
 		log.Println("Pushing to client :-", client.slug)
 
 		client.send <- jsonBytes
@@ -335,7 +335,7 @@ func (server *meshServer) RemoveClientRoom(roomname string, clientname string) {
 		server.clientInRoomEvent <- []string{"client-left-room", roomname, clientname}
 		select {
 		case server.rooms[roomname].clientInRoomEvent <- []string{"client-left-room", roomname, clientname}:
-			log.Println("client ", clientname, " left a room ", roomname)
+			log.Println("client ", clientname, " removed from a room ", roomname)
 		default:
 			log.Println("Failed to trigger left room trigger for client ", clientname, " in room", roomname)
 		}

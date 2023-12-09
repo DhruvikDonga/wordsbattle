@@ -458,13 +458,13 @@ export default {
                     
                     this.alerts.push(msg)
                 }
-                if (msg.action=="know-yourself" && msg.target == this.roomname) {
+                if (msg.action=="know-yourself") {
                     this.waitForSocketConnection(this.ws, function() {
                     this.ws.send(JSON.stringify({ action: 'set-client-name', message_body:{ setname: this.firstName}, target: this.roomname }));
                 }.bind(this));
                     this.youruserslug = msg.message_body.sender
                 }
-                if (msg.action=="fail-join-room-notify" && msg.target == this.roomname) {
+                if (msg.action=="fail-join-room-notify") {
                     this.gotthrownout = true
                     this.failedalerts.push(msg)
                 }
@@ -472,7 +472,7 @@ export default {
                     //console.log(msg)
                     this.roomname = msg.message
                 }
-                if (msg.action=="is-room-maker" && msg.target == this.roomname) {
+                if (msg.action=="is-room-maker") {
                     this.isroomaker = true
                 }
                 if (msg.action=="client-list-notify" && msg.target == this.roomname) {
@@ -633,7 +633,7 @@ export default {
         },
         startTheGame() {
             this.waitForSocketConnection(this.ws, function() {
-                this.ws.send(JSON.stringify({ action: 'start-the-game', message: this.roomname }));
+                this.ws.send(JSON.stringify({ action: 'start-the-game',  message_body:{ message: this.roomname},target: this.roomname ,sender:this.userslug }));
             }.bind(this));
             this.startthegamebuttonloader = true
         },
