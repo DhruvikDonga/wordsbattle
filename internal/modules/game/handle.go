@@ -71,6 +71,7 @@ func (r *RoomData) handleServermessages(room gomeshstream.Room, server gomeshstr
 			IsRandomGame:     false,
 			PlayerLimit:      int(message.MessageBody["playerlimit"].(float64)),
 			ClientProperties: make(map[string]*ClientProps),
+			Endtime:          1 * 60,
 		}
 		log.Println("JoinRoomAction ", message.Sender, message.MessageBody, room.GetRoomSlugInfo())
 		roomname := message.MessageBody["roomname"].(string)
@@ -82,7 +83,7 @@ func (r *RoomData) handleServermessages(room gomeshstream.Room, server gomeshstr
 		} else {
 
 			clientsinroom := []string{"join-room", roomname, message.Sender}
-			rd.FailToJoinRoomNotify("room-full", clientsinroom, room, server)
+			r.FailToJoinRoomNotify("room-full", clientsinroom, room, server)
 		}
 
 	}
@@ -96,11 +97,29 @@ func (r *RoomData) FailToJoinRoomNotify(reason string, clientsinroom []string, r
 	}
 	message := &gomeshstream.Message{
 		Action: "fail-join-room-notify",
-		Target: clientsinroom[1],
+		Target: clientsinroom[2],
 		MessageBody: map[string]interface{}{
 			"message": reasonmsg,
 		},
-		Sender:         clientsinroom[2],
+		Sender:         "bot-of-the-room",
+		IsTargetClient: true,
+	}
+
+	server.BroadcastMessage(message)
+}
+func (r *GameRoomData) FailToJoinRoomNotify(reason string, clientsinroom []string, room gomeshstream.Room, server gomeshstream.MeshServer) {
+	reasonmsg := ""
+	log.Println("Client removed", clientsinroom[2])
+	if reason == "room-full" {
+		reasonmsg = "Failed to join the room its occupied"
+	}
+	message := &gomeshstream.Message{
+		Action: "fail-join-room-notify",
+		Target: clientsinroom[2],
+		MessageBody: map[string]interface{}{
+			"message": reasonmsg,
+		},
+		Sender:         "bot-of-the-room",
 		IsTargetClient: true,
 	}
 

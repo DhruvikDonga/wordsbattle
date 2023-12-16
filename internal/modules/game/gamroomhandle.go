@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"sort"
 	"sync"
+	"time"
 
 	"github.com/DhruvikDonga/wordsbattle/pkg/gomeshstream"
 )
@@ -18,6 +20,7 @@ type GameRoomData struct {
 	Wordslist        map[string]bool
 	ClientProperties map[string]*ClientProps
 	Rounds           int
+	Endtime          int //time till which game is to be played
 }
 type ClientProps struct { //this can depend on a inroom basis so it changes
 	Color string `json:"color"`
@@ -76,6 +79,9 @@ func (r *GameRoomData) handleGameRoommessages(room gomeshstream.Room, server gom
 
 	case "start-the-game":
 		r.HandleStartGameMessage(message.Sender, message.Target, room, server)
+		go func() {
+			r.EndTheGameTimer(room, server)
+		}()
 	}
 
 }
@@ -102,6 +108,9 @@ func (r *GameRoomData) ClientListNotify(clientsinroom []string, room gomeshstrea
 		}
 		ret = append(ret, temp)
 	}
+	sort.Slice(ret[:], func(i, j int) bool {
+		return ret[i].Slug < ret[j].Slug
+	})
 	message := &gomeshstream.Message{
 		Action: "client-list-notify",
 		Target: clientsinroom[1],
@@ -155,25 +164,6 @@ func (r *GameRoomData) JoinRoomNotify(clientsinroom []string, room gomeshstream.
 	}
 }
 
-func (r *GameRoomData) FailToJoinRoomNotify(reason string, clientsinroom []string, room gomeshstream.Room, server gomeshstream.MeshServer) {
-	reasonmsg := ""
-	log.Println("Client removed", clientsinroom[2])
-	if reason == "room-full" {
-		reasonmsg = "Failed to join the room its occupied"
-	}
-	message := &gomeshstream.Message{
-		Action: "fail-join-room-notify",
-		Target: clientsinroom[2],
-		MessageBody: map[string]interface{}{
-			"message": reasonmsg,
-		},
-		Sender:         "bot-of-the-room",
-		IsTargetClient: true,
-	}
-
-	server.BroadcastMessage(message)
-}
-
 func (r *GameRoomData) HandleStartGameMessage(sender, target string, room gomeshstream.Room, server gomeshstream.MeshServer) {
 	log.Println("start the game for room ", target)
 	message := &gomeshstream.Message{
@@ -186,5 +176,91 @@ func (r *GameRoomData) HandleStartGameMessage(sender, target string, room gomesh
 		IsTargetClient: false,
 	}
 
-	server.BroadcastMessage(message)
+	room.BroadcastMessage(message)
+
+	time.Sleep(1 * time.Second)
+	botgreetingsmessage := &gomeshstream.Message{
+		Action: "send-message",
+		Target: target,
+		Sender: "bot-of-the-room",
+		MessageBody: map[string]interface{}{
+			"message": "Yo this is <b>Bot<small>@room-<small>" + target + "</small></small></b> here . I will be having my 👀 eyes over you if you playing fair, update the score board and assign you new letter",
+		},
+	}
+	room.BroadcastMessage(botgreetingsmessage)
+
+	time.Sleep(1 * time.Second)
+	clist := []*ClientProps{}
+	r.mu.RLock()
+	for slug, props := range r.ClientProperties {
+		temp := &ClientProps{
+			Color: props.Color,
+			Name:  props.Name,
+			Score: props.Score,
+			Slug:  slug,
+		}
+		clist = append(clist, temp)
+	}
+	r.mu.RUnlock()
+	sort.Slice(clist[:], func(i, j int) bool {
+		return clist[i].Slug < clist[j].Slug
+	})
+	chattimemessage := &gomeshstream.Message{
+		Action: "message-by-bot",
+		Target: target,
+		Sender: "bot-of-the-room",
+		MessageBody: map[string]interface{}{
+			"message":     "Okay giving you 10 seconds ⌛ to communicate with each other your textbox and send button will be activated then will start the match ",
+			"timer":       10,
+			"clientstats": clist,
+		},
+	}
+	room.BroadcastMessage(chattimemessage)
+
+}
+
+func (r *GameRoomData) EndTheGameTimer(room gomeshstream.Room, server gomeshstream.MeshServer) {
+
+	endtime := time.After(time.Duration(r.Endtime) * time.Second)
+	for {
+		select {
+		case <-endtime:
+			log.Println("the game in room ", room.GetRoomSlugInfo(), " ended")
+			message := &gomeshstream.Message{
+				Action:      "send-message",
+				MessageBody: map[string]interface{}{"message": "Game ended successfully 🍾 "},
+				Target:      room.GetRoomSlugInfo(),
+				Sender:      "bot-of-the-room",
+			}
+			room.BroadcastMessage(message)
+			time.Sleep(690 * time.Millisecond)
+			clist := []*ClientProps{}
+			r.mu.RLock()
+			for slug, props := range r.ClientProperties {
+				temp := &ClientProps{
+					Color: props.Color,
+					Name:  props.Name,
+					Score: props.Score,
+					Slug:  slug,
+				}
+				clist = append(clist, temp)
+			}
+			r.mu.RUnlock()
+			sort.Slice(clist[:], func(i, j int) bool {
+				return clist[i].Score > clist[j].Score
+			})
+			words := []string{}
+			messagestats := &gomeshstream.Message{
+				Action:      "room-bot-end-game",
+				MessageBody: map[string]interface{}{"message": "Game ended successfully 🍾 ", "client_list": clist, "word_list": words},
+				Target:      room.GetRoomSlugInfo(),
+				Sender:      "bot-of-the-room",
+			}
+			room.BroadcastMessage(messagestats)
+			return
+		case <-room.RoomStopped():
+			log.Println("start timer routine stopped cause room is stopped")
+			return
+		}
+	}
 }

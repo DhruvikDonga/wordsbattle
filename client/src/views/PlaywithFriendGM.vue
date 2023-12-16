@@ -498,35 +498,37 @@ export default {
                     this.gameCountDownTimer()
                 }
                 if (msg.action=="room-bot-end-game" && msg.target == this.roomname) {
-                    this.wordslist = msg.message.split(",")
+                    this.isthegamestoped = true
+                    if( msg.message_body.word_list.length>0){
+                        this.wordslist = msg.message_body.word_list.split(",")
+                    }
                     this.users=[]
-                    msg.clientstats.forEach(element => {
+                    msg.message_body.client_list.forEach(element => {
                         this.user = {
                             username : element.name,
                             userslug : element.slug,
-                            color: element.clientgamemetadata.color,
-                            score: element.clientgamemetadata.score
+                            color: element.color,
+                            score: element.score
                         }
                         
                         this.userstats.push(this.user)
                     });
-                    this.isthegamestoped = true
 
                 }
                 if (msg.action=="send-message" && msg.target == this.roomname) { //message from room server (user,bot,you)
-                    if (msg.sender.name == "bot-of-the-room") {
+                    if (msg.sender == "bot-of-the-room") {
                         this.gamemessage = {
                             user : "bot",
                             useravatar: "🤖",
-                            message: msg.message,
+                            message: msg.message_body.message,
                             color:"purple darken-4"
                         }
                         this.gamemessages.push(this.gamemessage)
-                    } else if (msg.sender.slug == this.youruserslug) {
+                    } else if (msg.sender == this.youruserslug) {
                         this.gamemessage = {
                             user : "you",
                             useravatar: msg.sender.name[0]+msg.sender.name[1],
-                            message: msg.message,
+                            message: msg.message_body.message,
                             color:msg.sender.clientgamemetadata.color
                         }
                         this.gamemessages.push(this.gamemessage)
@@ -535,7 +537,7 @@ export default {
                         this.gamemessage = {
                             user : "other",
                             useravatar: msg.sender.name[0]+msg.sender.name[1],
-                            message: msg.message,
+                            message: msg.message_body.message,
                             color:msg.sender.clientgamemetadata.color
                         }
                         this.gamemessages.push(this.gamemessage)
@@ -552,15 +554,15 @@ export default {
                     this.gamemessage = {
                             user : "bot",
                             useravatar: "🤖",
-                            message: msg.message,
+                            message: msg.message_body.message,
                             color:"purple darken-4"
                         }
                     this.gamemessages.push(this.gamemessage)
                  
-                    for (i =0; i< msg.clientstats.length; i++) {
+                    for (i =0; i< msg.message_body.clientstats.length; i++) {
                         
-                        if(this.users[i].userslug == msg.clientstats[i].slug) {
-                            this.users[i].score = msg.clientstats[i].clientgamemetadata.score
+                        if(this.users[i].userslug == msg.message_body.clientstats[i].slug) {
+                            this.users[i].score = msg.message_body.clientstats[i].score
                         }
                     }
                     if (msg.letter != "") {
@@ -572,7 +574,7 @@ export default {
                                 //console.log("user has left over glitch time")
                                 clearTimeout(this.gameticker)
                             }
-                            this.usercanentermessagetimer = msg.timer 
+                            this.usercanentermessagetimer = msg.message_body.timer 
                             this.inGamecountDownTimer()
 
                         } else {
@@ -580,7 +582,7 @@ export default {
                             this.usercanentermessage = false
                         }
                     } else { //then its for all
-                        this.usercanentermessagetimer = msg.timer 
+                        this.usercanentermessagetimer = msg.message_body.timer 
                         this.inGamecountDownTimer()
                     }
                 }
