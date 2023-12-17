@@ -527,18 +527,18 @@ export default {
                     } else if (msg.sender == this.youruserslug) {
                         this.gamemessage = {
                             user : "you",
-                            useravatar: msg.sender.name[0]+msg.sender.name[1],
+                            useravatar: msg.message_body.useravatar,
                             message: msg.message_body.message,
-                            color:msg.sender.clientgamemetadata.color
+                            color:msg.message_body.color
                         }
                         this.gamemessages.push(this.gamemessage)
 
                     } else {
                         this.gamemessage = {
                             user : "other",
-                            useravatar: msg.sender.name[0]+msg.sender.name[1],
+                            useravatar: msg.message_body.useravatar,
                             message: msg.message_body.message,
-                            color:msg.sender.clientgamemetadata.color
+                            color:msg.message_body.color
                         }
                         this.gamemessages.push(this.gamemessage)
 
@@ -565,11 +565,11 @@ export default {
                             this.users[i].score = msg.message_body.clientstats[i].score
                         }
                     }
-                    if (msg.letter != "") {
-                        this.newletter = msg.letter
+                    if (msg.message_body.letter != "") {
+                        this.newletter = msg.message_body.letter
                     }
-                    if (msg.whichclientturn != null) {
-                        if (msg.whichclientturn.slug== this.youruserslug) {
+                    if (msg.message_body.whichclientturn != null) {
+                        if (msg.message_body.whichclientturn== this.youruserslug) {
                             if(this.gameticker) {
                                 //console.log("user has left over glitch time")
                                 clearTimeout(this.gameticker)
@@ -641,7 +641,7 @@ export default {
         },
         leaveTheRoom() {
             this.waitForSocketConnection(this.ws, function() {
-                this.ws.send(JSON.stringify({ action: 'leave-room', message: this.roomname }));
+                this.ws.send(JSON.stringify({ action: 'leave-room', message_body:{message:this.roomname },target:this.roomname}));
             }.bind(this));
             router.back();
 
@@ -678,7 +678,7 @@ export default {
             if(this.ingamemessage !== "") {
                
                 if (this.newletter !="") { //game is on and the bot send a letter
-                    //console.log("triggered send message")
+                    console.log("triggered send message to the bot",this.newletter)
                     this.usercanentermessage = false
                     this.usercanentermessagetimer = null
                     
@@ -687,16 +687,15 @@ export default {
                     this.waitForSocketConnection(this.ws, function() {
                         this.ws.send(JSON.stringify(
                             {
-                                action:"send-message-by-bot",
+                                action:"attempt-word",
                                 target:this.roomname,
-                                message: this.ingamemessage.trim(),
-                                
+                                message_body:{message:this.ingamemessage.trim()},
                             })); //send it to websocket
                         this.ingamemessage=""
                     }.bind(this))
                 } else {
                     this.waitForSocketConnection(this.ws, function() {
-                        this.ws.send(JSON.stringify({action:"send-message",target:this.roomname,message: this.ingamemessage})); //send it to websocket
+                        this.ws.send(JSON.stringify({action:"send-message",target:this.roomname,message_body:{message:this.ingamemessage}})); //send it to websocket
                         this.ingamemessage=""
                     }.bind(this))
                 }
@@ -753,7 +752,7 @@ export default {
     beforeRouteLeave(to, from, next) {
         if(this.roomname != null && this.nameformdone == true){
             this.waitForSocketConnection(this.ws, function() {
-                this.ws.send(JSON.stringify({ action: 'leave-room', message: this.roomname }));
+                this.ws.send(JSON.stringify({ action: 'leave-room', target: this.roomname }));
             }.bind(this));
         }
         this.ws.close()

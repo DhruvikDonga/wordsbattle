@@ -72,6 +72,8 @@ func (r *RoomData) handleServermessages(room gomeshstream.Room, server gomeshstr
 			PlayerLimit:      int(message.MessageBody["playerlimit"].(float64)),
 			ClientProperties: make(map[string]*ClientProps),
 			Endtime:          1 * 60,
+			Rounds:           0,
+			TurnAttempted:    make(chan []string),
 		}
 		log.Println("JoinRoomAction ", message.Sender, message.MessageBody, room.GetRoomSlugInfo())
 		roomname := message.MessageBody["roomname"].(string)

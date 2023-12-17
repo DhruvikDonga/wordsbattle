@@ -21,6 +21,9 @@ type GameRoomData struct {
 	ClientProperties map[string]*ClientProps
 	Rounds           int
 	Endtime          int //time till which game is to be played
+	WhichClientTurn  string
+	Letter           string
+	TurnAttempted    chan []string //use to close the ticker if user has responded before the timer ends
 }
 type ClientProps struct { //this can depend on a inroom basis so it changes
 	Color string `json:"color"`
@@ -82,6 +85,19 @@ func (r *GameRoomData) handleGameRoommessages(room gomeshstream.Room, server gom
 		go func() {
 			r.EndTheGameTimer(room, server)
 		}()
+
+	case "send-message":
+		message.MessageBody["useravatar"] = r.ClientProperties[message.Sender].Name[:2]
+		message.MessageBody["color"] = r.ClientProperties[message.Sender].Color
+		room.BroadcastMessage(message)
+
+	case "attempt-word":
+		select {
+		default:
+		case r.TurnAttempted <- []string{message.MessageBody["message"].(string), message.Sender}:
+
+		}
+
 	}
 
 }
@@ -185,6 +201,7 @@ func (r *GameRoomData) HandleStartGameMessage(sender, target string, room gomesh
 		Sender: "bot-of-the-room",
 		MessageBody: map[string]interface{}{
 			"message": "Yo this is <b>Bot<small>@room-<small>" + target + "</small></small></b> here . I will be having my 👀 eyes over you if you playing fair, update the score board and assign you new letter",
+			"letter":  "",
 		},
 	}
 	room.BroadcastMessage(botgreetingsmessage)
@@ -213,10 +230,87 @@ func (r *GameRoomData) HandleStartGameMessage(sender, target string, room gomesh
 			"message":     "Okay giving you 10 seconds ⌛ to communicate with each other your textbox and send button will be activated then will start the match ",
 			"timer":       10,
 			"clientstats": clist,
+			"letter":      "",
 		},
 	}
 	room.BroadcastMessage(chattimemessage)
+	go func() {
+		firsturn := time.After(10 * time.Second)
+		for {
+			select {
+			case <-firsturn:
+				log.Println("chattime ends")
+				clist := []*ClientProps{}
+				r.mu.RLock()
+				for slug, props := range r.ClientProperties {
+					temp := &ClientProps{
+						Color: props.Color,
+						Name:  props.Name,
+						Score: props.Score,
+						Slug:  slug,
+					}
+					clist = append(clist, temp)
+				}
+				r.mu.RUnlock()
+				sort.Slice(clist[:], func(i, j int) bool {
+					return clist[i].Slug < clist[j].Slug
+				})
+				r.WhichClientTurn = clist[0].Slug
+				r.Letter = "W"
+				chattimeendmessage := &gomeshstream.Message{
+					Action: "message-by-bot",
+					Target: target,
+					Sender: "bot-of-the-room",
+					MessageBody: map[string]interface{}{
+						"message":         "Cool Cool , Enough of talking start the show <br><b>" + clist[0].Name + "<small>@" + clist[0].Slug + "</small></b> <br> start with letter <b>W</b> <br>Time starts now 18 seconds ⌛",
+						"clientstats":     clist,
+						"letter":          r.Letter,
+						"whichclientturn": r.WhichClientTurn,
+						"timer":           10,
+					},
+				}
+				room.BroadcastMessage(chattimeendmessage)
+				r.TurnTheGameTimer(room, server)
+				return
+			case <-r.TurnAttempted:
+				log.Println("turn attempted before timer ended")
+			case <-room.RoomStopped():
+				log.Println("chat only timer routine stopped cause room is stopped")
+				return
+			}
+		}
+	}()
 
+}
+
+func (r *GameRoomData) TurnTheGameTimer(room gomeshstream.Room, server gomeshstream.MeshServer) {
+
+	endtime := time.After(10 * time.Second)
+	go func() {
+		for {
+			select {
+			case <-endtime:
+				r.Rounds += 1
+				log.Println("the turn in room ", room.GetRoomSlugInfo(), " ended round", r.Rounds)
+				message := &gomeshstream.Message{
+					Action:      "send-message",
+					MessageBody: map[string]interface{}{"message": "Game turn ended successfully 🍾 "},
+					Target:      room.GetRoomSlugInfo(),
+					Sender:      "bot-of-the-room",
+				}
+				room.BroadcastMessage(message)
+
+				return
+			case wordguessedbyclient := <-r.TurnAttempted:
+				r.Rounds += 1
+				log.Println("user ", wordguessedbyclient[1], " attempted the turn", wordguessedbyclient[0], " its round", r.Rounds)
+				return
+			case <-room.RoomStopped():
+				log.Println("start timer routine stopped cause room is stopped")
+				return
+			}
+		}
+	}()
 }
 
 func (r *GameRoomData) EndTheGameTimer(room gomeshstream.Room, server gomeshstream.MeshServer) {
