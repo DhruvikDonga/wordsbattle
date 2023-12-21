@@ -71,6 +71,8 @@ func (r *RoomData) handleServermessages(room gomeshstream.Room, server gomeshstr
 			IsRandomGame:     false,
 			PlayerLimit:      int(message.MessageBody["playerlimit"].(float64)),
 			ClientProperties: make(map[string]*ClientProps),
+			GameEnded:        make(chan bool),
+			Wordslist:        make(map[string]bool),
 			Endtime:          1 * 60,
 			Rounds:           0,
 			TurnAttempted:    make(chan []string),

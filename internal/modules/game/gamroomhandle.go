@@ -5,6 +5,7 @@ import (
 	"log"
 	"math/rand"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -19,9 +20,11 @@ type GameRoomData struct {
 	ClientScore      map[string]int
 	Wordslist        map[string]bool
 	ClientProperties map[string]*ClientProps
+	ClientTurnList   []*ClientProps
 	Rounds           int
 	Endtime          int //time till which game is to be played
-	WhichClientTurn  string
+	WhichClientTurn  *ClientProps
+	GameEnded        chan bool
 	Letter           string
 	TurnAttempted    chan []string //use to close the ticker if user has responded before the timer ends
 }
@@ -92,6 +95,10 @@ func (r *GameRoomData) handleGameRoommessages(room gomeshstream.Room, server gom
 		room.BroadcastMessage(message)
 
 	case "attempt-word":
+		message.MessageBody["useravatar"] = r.ClientProperties[message.Sender].Name[:2]
+		message.MessageBody["color"] = r.ClientProperties[message.Sender].Color
+		message.Action = "send-message"
+		room.BroadcastMessage(message)
 		select {
 		default:
 		case r.TurnAttempted <- []string{message.MessageBody["message"].(string), message.Sender}:
@@ -108,30 +115,35 @@ type ClientsinRoomMessage struct { // we are using this to return list of client
 
 func (r *GameRoomData) ClientListNotify(clientsinroom []string, room gomeshstream.Room, server gomeshstream.MeshServer) {
 	ret := []*ClientProps{}
+
 	if clientsinroom[0] == "client-left-room" {
+		r.removefromclientlist(r.ClientProperties[clientsinroom[2]])
+
 		r.mu.Lock()
 		delete(r.ClientProperties, clientsinroom[2])
 
 		r.mu.Unlock()
 
-	}
-	for slug, props := range r.ClientProperties {
-		temp := &ClientProps{
-			Color: props.Color,
-			Name:  props.Name,
-			Score: props.Score,
-			Slug:  slug,
+	} else {
+		for slug, props := range r.ClientProperties {
+			temp := &ClientProps{
+				Color: props.Color,
+				Name:  props.Name,
+				Score: props.Score,
+				Slug:  slug,
+			}
+			ret = append(ret, temp)
 		}
-		ret = append(ret, temp)
+		sort.Slice(ret[:], func(i, j int) bool {
+			return ret[i].Slug < ret[j].Slug
+		})
+		r.ClientTurnList = ret
 	}
-	sort.Slice(ret[:], func(i, j int) bool {
-		return ret[i].Slug < ret[j].Slug
-	})
 	message := &gomeshstream.Message{
 		Action: "client-list-notify",
 		Target: clientsinroom[1],
 		MessageBody: map[string]interface{}{
-			"clientsinroomessage": ret,
+			"clientsinroomessage": r.ClientTurnList,
 		},
 		Sender:         "Gawd",
 		IsTargetClient: false,
@@ -222,6 +234,7 @@ func (r *GameRoomData) HandleStartGameMessage(sender, target string, room gomesh
 	sort.Slice(clist[:], func(i, j int) bool {
 		return clist[i].Slug < clist[j].Slug
 	})
+	r.ClientTurnList = clist
 	chattimemessage := &gomeshstream.Message{
 		Action: "message-by-bot",
 		Target: target,
@@ -255,14 +268,15 @@ func (r *GameRoomData) HandleStartGameMessage(sender, target string, room gomesh
 				sort.Slice(clist[:], func(i, j int) bool {
 					return clist[i].Slug < clist[j].Slug
 				})
-				r.WhichClientTurn = clist[0].Slug
-				r.Letter = "W"
+				r.ClientTurnList = clist
+				r.WhichClientTurn = clist[0]
+				r.Letter = "w"
 				chattimeendmessage := &gomeshstream.Message{
 					Action: "message-by-bot",
 					Target: target,
 					Sender: "bot-of-the-room",
 					MessageBody: map[string]interface{}{
-						"message":         "Cool Cool , Enough of talking start the show <br><b>" + clist[0].Name + "<small>@" + clist[0].Slug + "</small></b> <br> start with letter <b>W</b> <br>Time starts now 18 seconds ⌛",
+						"message":         "Cool Cool , Enough of talking start the show <br><b>" + clist[0].Name + "<small>@" + clist[0].Slug + "</small></b> <br> start with letter <b>W</b> <br>Time starts now 10 seconds ⌛",
 						"clientstats":     clist,
 						"letter":          r.Letter,
 						"whichclientturn": r.WhichClientTurn,
@@ -272,8 +286,6 @@ func (r *GameRoomData) HandleStartGameMessage(sender, target string, room gomesh
 				room.BroadcastMessage(chattimeendmessage)
 				r.TurnTheGameTimer(room, server)
 				return
-			case <-r.TurnAttempted:
-				log.Println("turn attempted before timer ended")
 			case <-room.RoomStopped():
 				log.Println("chat only timer routine stopped cause room is stopped")
 				return
@@ -300,13 +312,73 @@ func (r *GameRoomData) TurnTheGameTimer(room gomeshstream.Room, server gomeshstr
 				}
 				room.BroadcastMessage(message)
 
-				return
+				r.mu.RLock()
+				currentplayer := r.WhichClientTurn
+				r.mu.RUnlock()
+				nextplayer := r.getnextplayer(currentplayer)
+				r.WhichClientTurn = nextplayer
+				resmessage := fmt.Sprintf("Word not guessed by, <b>%v<small>@%v</small></b> times up <br> now <b>%v<small>@%v</small></b> start with letter <b>%v</b> <br>Time starts now 10 seconds ⌛", currentplayer.Name, currentplayer.Slug, nextplayer.Name, nextplayer.Slug, r.Letter)
+
+				sendmessage := &gomeshstream.Message{
+					Target:      room.GetRoomSlugInfo(),
+					MessageBody: map[string]interface{}{"message": resmessage, "whichclientturn": nextplayer, "clientstats": r.ClientTurnList, "letter": r.Letter, "timer": 11},
+					Action:      "message-by-bot",
+					Sender:      "bot-of-the-room",
+				}
+				time.Sleep(1 * time.Second)
+				room.BroadcastMessage(sendmessage)
+				endtime = time.After(11 * time.Second)
+
 			case wordguessedbyclient := <-r.TurnAttempted:
+				message := &gomeshstream.Message{
+					Action:      "send-message",
+					MessageBody: map[string]interface{}{"message": "Game turn ended successfully 🍾 "},
+					Target:      room.GetRoomSlugInfo(),
+					Sender:      "bot-of-the-room",
+				}
+				room.BroadcastMessage(message)
 				r.Rounds += 1
-				log.Println("user ", wordguessedbyclient[1], " attempted the turn", wordguessedbyclient[0], " its round", r.Rounds)
-				return
+				guessedword := strings.ToLower(wordguessedbyclient[0])
+				log.Println("user ", wordguessedbyclient[1], " attempted the turn", guessedword, " its round", r.Rounds, "letter was", r.Letter)
+				status := MatchWord(guessedword, r.Wordslist, r.Letter[0])
+				r.mu.RLock()
+				currentplayer := r.WhichClientTurn
+				r.mu.RUnlock()
+				nextplayer := r.getnextplayer(currentplayer)
+				resmessage := ""
+				if status == "word-correct" {
+					r.Letter = string(guessedword[len(guessedword)-1]) //correct then new letter
+					resmessage = fmt.Sprintf("Bravo correct word guessed by <b>%v<small>@%v</small></b> now <b>%v<small>@%v</small></b> <br> start with letter <b>%v</b> <br>Time starts now 11 seconds ⌛", currentplayer.Name, currentplayer.Slug, nextplayer.Name, nextplayer.Slug, r.Letter)
+					r.mu.Lock()
+					r.WhichClientTurn.Score += 1
+					r.mu.Unlock()
+					r.Wordslist[guessedword] = true //add it to our word list
+
+				} else if status == "wrong-letter" {
+					resmessage = fmt.Sprintf("Word starts with wrong letter <b>%v<small>@%v</small></b> now <b>%v<small>@%v</small></b> <br> start with letter <b>%v</b> <br>Time starts now 11 seconds ⌛", currentplayer.Name, currentplayer.Slug, nextplayer.Name, nextplayer.Slug, r.Letter)
+				} else if status == "no-such-word" {
+					resmessage = fmt.Sprintf("No such word exisists in our dictionary guessed by <b>%v<small>@%v</small></b> now <b>%v<small>@%v</small></b> <br> start with letter <b>%v</b> <br>Time starts now 11 seconds ⌛", currentplayer.Name, currentplayer.Slug, nextplayer.Name, nextplayer.Slug, r.Letter)
+				} else if status == "word-reused" {
+					resmessage = fmt.Sprintf("This word is already guessed  <b>%v<small>@%v</small></b> so not helpfull now <b>%v<small>@%v</small></b> <br> start with letter <b>%v</b> <br>Time starts now 11 seconds ⌛", currentplayer.Name, currentplayer.Slug, nextplayer.Name, nextplayer.Slug, r.Letter)
+				}
+				r.WhichClientTurn = nextplayer
+
+				message = &gomeshstream.Message{
+					Action:      "message-by-bot",
+					MessageBody: map[string]interface{}{"message": resmessage, "whichclientturn": nextplayer, "clientstats": r.ClientTurnList, "letter": r.Letter, "timer": 11},
+					Target:      room.GetRoomSlugInfo(),
+					Sender:      "bot-of-the-room",
+				}
+				time.Sleep(1 * time.Second)
+				room.BroadcastMessage(message)
+
+				endtime = time.After(11 * time.Second)
 			case <-room.RoomStopped():
 				log.Println("start timer routine stopped cause room is stopped")
+				return
+
+			case <-r.GameEnded:
+				log.Println("game timer routine stopped cause game ended")
 				return
 			}
 		}
@@ -320,6 +392,7 @@ func (r *GameRoomData) EndTheGameTimer(room gomeshstream.Room, server gomeshstre
 		select {
 		case <-endtime:
 			log.Println("the game in room ", room.GetRoomSlugInfo(), " ended")
+			r.GameEnded <- true
 			message := &gomeshstream.Message{
 				Action:      "send-message",
 				MessageBody: map[string]interface{}{"message": "Game ended successfully 🍾 "},
@@ -328,25 +401,18 @@ func (r *GameRoomData) EndTheGameTimer(room gomeshstream.Room, server gomeshstre
 			}
 			room.BroadcastMessage(message)
 			time.Sleep(690 * time.Millisecond)
-			clist := []*ClientProps{}
-			r.mu.RLock()
-			for slug, props := range r.ClientProperties {
-				temp := &ClientProps{
-					Color: props.Color,
-					Name:  props.Name,
-					Score: props.Score,
-					Slug:  slug,
-				}
-				clist = append(clist, temp)
-			}
-			r.mu.RUnlock()
+			clist := r.ClientTurnList
+
 			sort.Slice(clist[:], func(i, j int) bool {
 				return clist[i].Score > clist[j].Score
 			})
-			words := []string{}
+			wordlist := []string{}
+			for words := range r.Wordslist {
+				wordlist = append(wordlist, words)
+			}
 			messagestats := &gomeshstream.Message{
 				Action:      "room-bot-end-game",
-				MessageBody: map[string]interface{}{"message": "Game ended successfully 🍾 ", "client_list": clist, "word_list": words},
+				MessageBody: map[string]interface{}{"message": "Game ended successfully 🍾 ", "client_list": clist, "word_list": wordlist},
 				Target:      room.GetRoomSlugInfo(),
 				Sender:      "bot-of-the-room",
 			}
@@ -357,4 +423,41 @@ func (r *GameRoomData) EndTheGameTimer(room gomeshstream.Room, server gomeshstre
 			return
 		}
 	}
+}
+
+func (r *GameRoomData) getnextplayer(currentplayer *ClientProps) *ClientProps {
+	index := 0
+	clientlist := r.ClientTurnList
+	for key, client := range clientlist {
+		if client.Slug == currentplayer.Slug {
+			index = key
+		}
+	}
+	if index+1 == len(clientlist) { //last key
+		index = 0 //first client
+	} else {
+		index += 1 //next client
+	}
+	return clientlist[index]
+}
+
+func (r *GameRoomData) removefromclientlist(removedplayer *ClientProps) {
+	r.mu.Lock()
+	index := 0
+	flg := false
+	for key, client := range r.ClientTurnList {
+		if client.Slug == removedplayer.Slug {
+			index = key
+			flg = true
+			break
+		}
+	}
+	if flg {
+		if len(r.ClientTurnList) > 1 {
+			r.ClientTurnList = append(r.ClientTurnList[:index], r.ClientTurnList[index+1:]...)
+		} else {
+			r.ClientTurnList = []*ClientProps{}
+		}
+	}
+	r.mu.Unlock()
 }

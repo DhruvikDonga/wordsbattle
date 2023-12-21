@@ -500,7 +500,7 @@ export default {
                 if (msg.action=="room-bot-end-game" && msg.target == this.roomname) {
                     this.isthegamestoped = true
                     if( msg.message_body.word_list.length>0){
-                        this.wordslist = msg.message_body.word_list.split(",")
+                        this.wordslist = msg.message_body.word_list
                     }
                     this.users=[]
                     msg.message_body.client_list.forEach(element => {
@@ -566,10 +566,11 @@ export default {
                         }
                     }
                     if (msg.message_body.letter != "") {
+                        console.log("New letter came")
                         this.newletter = msg.message_body.letter
                     }
                     if (msg.message_body.whichclientturn != null) {
-                        if (msg.message_body.whichclientturn== this.youruserslug) {
+                        if (msg.message_body.whichclientturn.slug== this.youruserslug) {
                             if(this.gameticker) {
                                 //console.log("user has left over glitch time")
                                 clearTimeout(this.gameticker)

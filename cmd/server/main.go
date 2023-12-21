@@ -13,6 +13,7 @@ import (
 
 	"github.com/DhruvikDonga/wordsbattle/internal/handler"
 	"github.com/DhruvikDonga/wordsbattle/internal/modules/cowgameclient"
+	"github.com/DhruvikDonga/wordsbattle/internal/modules/game"
 	"github.com/DhruvikDonga/wordsbattle/pkg/db"
 	"github.com/DhruvikDonga/wordsbattle/util"
 )
@@ -48,6 +49,7 @@ func main() {
 	fileScanner.Split(bufio.ScanLines)
 	for fileScanner.Scan() {
 		cowgameclient.Worddictionary[fileScanner.Text()] = true
+		game.Worddictionary[fileScanner.Text()] = true
 	}
 	readFile.Close()
 
