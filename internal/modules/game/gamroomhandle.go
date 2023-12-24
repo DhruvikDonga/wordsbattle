@@ -26,7 +26,9 @@ type GameRoomData struct {
 	WhichClientTurn  *ClientProps
 	GameEnded        chan bool
 	Letter           string
-	TurnAttempted    chan []string //use to close the ticker if user has responded before the timer ends
+	TurnAttempted    chan []string //use to close the ticker if user has responded before the timer ends4
+	HasGameStarted   bool
+	HasGameEnded     bool
 }
 type ClientProps struct { //this can depend on a inroom basis so it changes
 	Color string `json:"color"`
@@ -54,8 +56,22 @@ func (r *GameRoomData) HandleRoomData(room gomeshstream.Room, server gomeshstrea
 			log.Println("Event triggered", clientsinroom[0], clientsinroom[1], clientsinroom[2])
 			switch clientsinroom[0] {
 			case "client-joined-room":
-				r.JoinRoomNotify(clientsinroom, room, server) //to all in the room
-				r.KnowTheClient(clientsinroom, room, server)  //to only the client
+				if r.HasGameStarted {
+					message := &gomeshstream.Message{
+						Action: "fail-join-room-notify",
+						Target: clientsinroom[2],
+						MessageBody: map[string]interface{}{
+							"message": "The game in the room has already started",
+						},
+						Sender:         "bot-of-the-room",
+						IsTargetClient: true,
+					}
+
+					server.BroadcastMessage(message)
+				} else {
+					r.JoinRoomNotify(clientsinroom, room, server) //to all in the room
+					r.KnowTheClient(clientsinroom, room, server)  //to only the client
+				}
 
 			case "client-left-room":
 				r.ClientListNotify(clientsinroom, room, server)
@@ -117,7 +133,8 @@ func (r *GameRoomData) ClientListNotify(clientsinroom []string, room gomeshstrea
 	ret := []*ClientProps{}
 
 	if clientsinroom[0] == "client-left-room" {
-		r.removefromclientlist(r.ClientProperties[clientsinroom[2]])
+		log.Println("client left room triggered")
+		r.removefromclientlist(clientsinroom[2])
 
 		r.mu.Lock()
 		delete(r.ClientProperties, clientsinroom[2])
@@ -194,6 +211,7 @@ func (r *GameRoomData) JoinRoomNotify(clientsinroom []string, room gomeshstream.
 
 func (r *GameRoomData) HandleStartGameMessage(sender, target string, room gomeshstream.Room, server gomeshstream.MeshServer) {
 	log.Println("start the game for room ", target)
+	r.HasGameStarted = true
 	message := &gomeshstream.Message{
 		Action: "room-bot-greetings",
 		Target: target,
@@ -392,6 +410,7 @@ func (r *GameRoomData) EndTheGameTimer(room gomeshstream.Room, server gomeshstre
 		select {
 		case <-endtime:
 			log.Println("the game in room ", room.GetRoomSlugInfo(), " ended")
+			r.HasGameEnded = true
 			r.GameEnded <- true
 			message := &gomeshstream.Message{
 				Action:      "send-message",
@@ -441,17 +460,20 @@ func (r *GameRoomData) getnextplayer(currentplayer *ClientProps) *ClientProps {
 	return clientlist[index]
 }
 
-func (r *GameRoomData) removefromclientlist(removedplayer *ClientProps) {
+func (r *GameRoomData) removefromclientlist(removedplayerslug string) {
 	r.mu.Lock()
 	index := 0
 	flg := false
+
 	for key, client := range r.ClientTurnList {
-		if client.Slug == removedplayer.Slug {
+		if client.Slug == removedplayerslug {
 			index = key
 			flg = true
 			break
 		}
 	}
+	log.Println("client left room triggered remmovefromclientlist", index, flg, removedplayerslug)
+
 	if flg {
 		if len(r.ClientTurnList) > 1 {
 			r.ClientTurnList = append(r.ClientTurnList[:index], r.ClientTurnList[index+1:]...)

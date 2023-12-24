@@ -76,6 +76,9 @@ func (r *RoomData) handleServermessages(room gomeshstream.Room, server gomeshstr
 			Endtime:          1 * 60,
 			Rounds:           0,
 			TurnAttempted:    make(chan []string),
+			HasGameStarted:   false,
+			HasGameEnded:     false,
+			ClientTurnList:   []*ClientProps{},
 		}
 		log.Println("JoinRoomAction ", message.Sender, message.MessageBody, room.GetRoomSlugInfo())
 		roomname := message.MessageBody["roomname"].(string)
