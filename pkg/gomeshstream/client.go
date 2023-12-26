@@ -98,8 +98,17 @@ func (client *client) readPump() {
 		}
 		message.Sender = client.slug
 		log.Println("JSON-MESSAGE-readpump", string(jsonMessage))
-		client.meshServer.processMessage <- &message
+		client.meshServer.mu.Lock()
+		roomtosend := client.meshServer.rooms[message.Target]
+		client.meshServer.mu.Unlock()
 
+		select {
+		case roomtosend.consumeMessage <- &message:
+			//log.Println("Room name ", roomtosend.slug, "Created by ", roomtosend.createdby)
+		default:
+			log.Println("Failed to send  to Room name ", roomtosend.slug)
+
+		}
 	}
 }
 

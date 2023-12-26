@@ -30,7 +30,7 @@ type MeshServer interface {
 
 	DeleteRoom(name string)
 
-	BroadcastMessage(message *Message)
+	//BroadcastMessage(message *Message)
 
 	JoinClientRoom(roomname string, clientname string, rd RoomData)
 
@@ -153,9 +153,9 @@ func (server *meshServer) RunMeshServer() {
 
 		case message := <-server.processMessage: //this broadcaster will broadcast to all clients
 			//log.Println("Websocket broadcast", message)
-			if server.isbroadcaston {
-				server.BroadcastMessage(message) //broadcast the message from readpump
-			}
+			// if server.isbroadcaston {
+			// 	server.BroadcastMessage(message) //broadcast the message from readpump
+			// }
 			roomtosend := server.rooms[message.Target]
 			select {
 			case roomtosend.consumeMessage <- message:
@@ -270,27 +270,27 @@ func (server *meshServer) DeleteRoom(name string) {
 
 }
 
-func (server *meshServer) BroadcastMessage(message *Message) {
-	server.mu.RLock()
-	defer server.mu.RUnlock()
-	jsonBytes := message.Encode()
-	log.Println("Broadcasting message ----", string(jsonBytes))
-	if message.IsTargetClient {
+// func (server *meshServer) BroadcastMessage(message *Message) {
+// 	server.mu.RLock()
+// 	defer server.mu.RUnlock()
+// 	jsonBytes := message.Encode()
+// 	log.Println("Broadcasting message ----", string(jsonBytes))
+// 	if message.IsTargetClient {
 
-		client := server.clients[message.Target]
-		log.Println("Pushing to client :-", client.slug)
+// 		client := server.clients[message.Target]
+// 		log.Println("Pushing to client :-", client.slug)
 
-		client.send <- jsonBytes
-	} else {
-		clients := server.clientsinroom[message.Target]
-		log.Println("Pushing to clients :-", clients)
-		for c := range clients {
-			client := server.clients[c]
-			client.send <- jsonBytes
-		}
-	}
+// 		client.send <- jsonBytes
+// 	} else {
+// 		clients := server.clientsinroom[message.Target]
+// 		log.Println("Pushing to clients :-", clients)
+// 		for c := range clients {
+// 			client := server.clients[c]
+// 			client.send <- jsonBytes
+// 		}
+// 	}
 
-}
+// }
 
 func (server *meshServer) JoinClientRoom(roomname string, clientname string, rd RoomData) {
 	noroom := false

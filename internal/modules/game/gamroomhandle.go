@@ -67,7 +67,7 @@ func (r *GameRoomData) HandleRoomData(room gomeshstream.Room, server gomeshstrea
 						IsTargetClient: true,
 					}
 
-					server.BroadcastMessage(message)
+					room.BroadcastMessage(message)
 				} else {
 					r.JoinRoomNotify(clientsinroom, room, server) //to all in the room
 					r.KnowTheClient(clientsinroom, room, server)  //to only the client
@@ -166,7 +166,7 @@ func (r *GameRoomData) ClientListNotify(clientsinroom []string, room gomeshstrea
 		IsTargetClient: false,
 	}
 
-	server.BroadcastMessage(message)
+	room.BroadcastMessage(message)
 }
 
 func (r *GameRoomData) KnowTheClient(clientsinroom []string, room gomeshstream.Room, server gomeshstream.MeshServer) {
@@ -180,7 +180,7 @@ func (r *GameRoomData) KnowTheClient(clientsinroom []string, room gomeshstream.R
 		IsTargetClient: true,
 	}
 
-	server.BroadcastMessage(message)
+	room.BroadcastMessage(message)
 }
 
 func (r *GameRoomData) JoinRoomNotify(clientsinroom []string, room gomeshstream.Room, server gomeshstream.MeshServer) {
@@ -194,7 +194,7 @@ func (r *GameRoomData) JoinRoomNotify(clientsinroom []string, room gomeshstream.
 		IsTargetClient: false,
 	}
 
-	server.BroadcastMessage(message)
+	room.BroadcastMessage(message)
 
 	if clientsinroom[2] == room.GetRoomMakerInfo() {
 		roommakermessage := &gomeshstream.Message{
@@ -204,7 +204,7 @@ func (r *GameRoomData) JoinRoomNotify(clientsinroom []string, room gomeshstream.
 			Sender:         "bot-of-the-room",
 			IsTargetClient: true,
 		}
-		server.BroadcastMessage(roommakermessage)
+		room.BroadcastMessage(roommakermessage)
 
 	}
 }

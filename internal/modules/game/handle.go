@@ -112,7 +112,7 @@ func (r *RoomData) FailToJoinRoomNotify(reason string, clientsinroom []string, r
 		IsTargetClient: true,
 	}
 
-	server.BroadcastMessage(message)
+	room.BroadcastMessage(message)
 }
 func (r *GameRoomData) FailToJoinRoomNotify(reason string, clientsinroom []string, room gomeshstream.Room, server gomeshstream.MeshServer) {
 	reasonmsg := ""
@@ -130,5 +130,5 @@ func (r *GameRoomData) FailToJoinRoomNotify(reason string, clientsinroom []strin
 		IsTargetClient: true,
 	}
 
-	server.BroadcastMessage(message)
+	room.BroadcastMessage(message)
 }

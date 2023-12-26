@@ -15,12 +15,20 @@ type Room interface {
 
 	GetRoomMakerInfo() string
 
+	// This is to indicate that there are no clients in the room to send the message
+	// If there are no clients in the room the room gets deleted from the map and this channel is closed.
+	// The HandleRoomData go routine will be closed if implemented.
 	RoomStopped() <-chan struct{}
 
+	//ConsumeRoomMessage receives the messages it gets directly from the clients.
 	ConsumeRoomMessage() <-chan *Message
 
+	//This are the events such as client-joined-room,client-left-room .
+	//Consist of list of 3 values :- [event,roomname,clientid]
 	EventTriggers() <-chan []string
 
+	//BroadcastMessage pushes the message to all the clients in the room .
+	//Use IsTargetClient to true if you have to send the message to a particular client of the room .
 	BroadcastMessage(message *Message)
 }
 
