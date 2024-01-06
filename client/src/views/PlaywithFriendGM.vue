@@ -470,7 +470,7 @@ export default {
                 }
                 if (msg.action=="found-random-room-notify") {
                     //console.log(msg)
-                    this.roomname = msg.message
+                    this.roomname = msg.message_body.roomname
                 }
                 if (msg.action=="is-room-maker") {
                     this.isroomaker = true
@@ -619,7 +619,7 @@ export default {
             } else {
                 this.israndomgame = true
                 this.waitForSocketConnection(this.ws, function() {
-                    this.ws.send(JSON.stringify({ action: 'join-random-room', message: this.makeroom(10) }));
+                    this.ws.send(JSON.stringify({ action: 'join-random-room',message_body: {roomname: this.makeroom(10)} , target: 'mesh-global' }));
                 }.bind(this));
             }
         },

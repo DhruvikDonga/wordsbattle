@@ -24,6 +24,7 @@ type RoomData struct {
 	Wordslist        map[string]bool
 	ClientProperties map[string]*ClientProps
 	Rounds           int
+	RandomRooms      []string
 }
 
 func (r *RoomData) HandleRoomData(room gomeshstream.Room, server gomeshstream.MeshServer) {
@@ -91,6 +92,50 @@ func (r *RoomData) handleServermessages(room gomeshstream.Room, server gomeshstr
 
 			clientsinroom := []string{"join-room", roomname, message.Sender}
 			r.FailToJoinRoomNotify("room-full", clientsinroom, room, server)
+		}
+	case "join-random-room":
+		rd := GameRoomData{
+			IsRandomGame:     true,
+			PlayerLimit:      2, //random game only 2
+			ClientProperties: make(map[string]*ClientProps),
+			GameEnded:        make(chan bool),
+			Wordslist:        make(map[string]bool),
+			Endtime:          1 * 60,
+			Rounds:           0,
+			TurnAttempted:    make(chan []string),
+			HasGameStarted:   false,
+			HasGameEnded:     false,
+			ClientTurnList:   []*ClientProps{},
+		}
+		log.Println("JoinRandomRoomAction ", message.Sender, message.MessageBody, room.GetRoomSlugInfo())
+		roomname := message.MessageBody["roomname"].(string)
+		if len(r.RandomRooms) > 0 {
+			roomname = r.RandomRooms[0]
+			inroomcnt := len(server.GetClientsInRoom()[roomname])
+			log.Println("Players in the room before new added ", roomname, " are", inroomcnt, " and player limit is ", rd.PlayerLimit)
+			if inroomcnt < rd.PlayerLimit {
+				server.JoinClientRoom(roomname, message.Sender, &rd)
+				log.Println("request send to join a random room")
+				if inroomcnt+1 == rd.PlayerLimit { //it means random room reached it limits
+					r.RandomRooms = []string{}
+				}
+			}
+
+			// if len(r.RandomRooms) > 1 {
+			// 	r.RandomRooms = r.RandomRooms[1:]
+			// } else {
+			// 	r.RandomRooms = []string{}
+			// }
+		} else {
+			r.RandomRooms = append(r.RandomRooms, roomname)
+			roomname = r.RandomRooms[0]
+			inroomcnt := len(server.GetClientsInRoom()[roomname])
+			log.Println("Players in the room before new added ", roomname, " are", inroomcnt, " and player limit is ", rd.PlayerLimit)
+			if inroomcnt < rd.PlayerLimit {
+				server.JoinClientRoom(roomname, message.Sender, &rd)
+				log.Println("request send to join a random room")
+			}
+
 		}
 
 	}

@@ -69,6 +69,9 @@ func (r *GameRoomData) HandleRoomData(room gomeshstream.Room, server gomeshstrea
 
 					room.BroadcastMessage(message)
 				} else {
+					if r.IsRandomGame {
+						r.GotRandomRoom(clientsinroom, room, server)
+					}
 					r.JoinRoomNotify(clientsinroom, room, server) //to all in the room
 					r.KnowTheClient(clientsinroom, room, server)  //to only the client
 				}
@@ -175,6 +178,20 @@ func (r *GameRoomData) KnowTheClient(clientsinroom []string, room gomeshstream.R
 		Target: clientsinroom[2],
 		MessageBody: map[string]interface{}{
 			"sender": clientsinroom[2],
+		},
+		Sender:         "bot-of-the-room",
+		IsTargetClient: true,
+	}
+
+	room.BroadcastMessage(message)
+}
+
+func (r *GameRoomData) GotRandomRoom(clientsinroom []string, room gomeshstream.Room, server gomeshstream.MeshServer) {
+	message := &gomeshstream.Message{
+		Action: "found-random-room-notify",
+		Target: clientsinroom[2],
+		MessageBody: map[string]interface{}{
+			"roomname": clientsinroom[1],
 		},
 		Sender:         "bot-of-the-room",
 		IsTargetClient: true,

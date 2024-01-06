@@ -53,7 +53,7 @@ func RouteService(app *App) http.Handler {
 		cowgameclient.ServeWs(wsServer, w, r)
 	})
 
-	roomdata := &game.RoomData{}
+	roomdata := &game.RoomData{RandomRooms: []string{}}
 	ms := gomeshstream.NewMeshServer("cowgame", &gomeshstream.MeshServerConfig{DirectBroadCast: false}, roomdata)
 	// initialize websocket link cowgame connection clash of words
 	r.HandleFunc("/wsmesh", func(w http.ResponseWriter, r *http.Request) {
