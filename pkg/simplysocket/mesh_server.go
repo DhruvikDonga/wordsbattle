@@ -1,4 +1,4 @@
-package gomeshstream
+package simplysocket
 
 import (
 	"log"
@@ -104,6 +104,7 @@ func NewMeshServer(name string, meshconf *MeshServerConfig, rd RoomData) *meshSe
 
 		roomdata: rd,
 	}
+	//this one is global room created by package itself
 	r := &room{
 		id:                server.roomcnt,
 		slug:              MeshGlobalRoom,

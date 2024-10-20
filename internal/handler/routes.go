@@ -7,7 +7,7 @@ import (
 	"github.com/DhruvikDonga/wordsbattle/internal/modules/cowgameclient"
 	"github.com/DhruvikDonga/wordsbattle/internal/modules/game"
 	"github.com/DhruvikDonga/wordsbattle/pkg/db"
-	"github.com/DhruvikDonga/wordsbattle/pkg/gomeshstream"
+	"github.com/DhruvikDonga/wordsbattle/pkg/simplysocket"
 	"github.com/DhruvikDonga/wordsbattle/util"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -54,10 +54,10 @@ func RouteService(app *App) http.Handler {
 	})
 
 	roomdata := &game.RoomData{RandomRooms: []string{}}
-	ms := gomeshstream.NewMeshServer("cowgame", &gomeshstream.MeshServerConfig{DirectBroadCast: false}, roomdata)
+	ms := simplysocket.NewMeshServer("cowgame", &simplysocket.MeshServerConfig{DirectBroadCast: false}, roomdata)
 	// initialize websocket link cowgame connection clash of words
 	r.HandleFunc("/wsmesh", func(w http.ResponseWriter, r *http.Request) {
-		gomeshstream.ServeWs(ms, w, r)
+		simplysocket.ServeWs(ms, w, r)
 	})
 
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {

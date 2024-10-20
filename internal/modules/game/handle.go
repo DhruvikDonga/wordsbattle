@@ -3,7 +3,7 @@ package game
 import (
 	"log"
 
-	"github.com/DhruvikDonga/wordsbattle/pkg/gomeshstream"
+	"github.com/DhruvikDonga/wordsbattle/pkg/simplysocket"
 )
 
 const (
@@ -27,7 +27,7 @@ type RoomData struct {
 	RandomRooms      []string
 }
 
-func (r *RoomData) HandleRoomData(room gomeshstream.Room, server gomeshstream.MeshServer) {
+func (r *RoomData) HandleRoomData(room simplysocket.Room, server simplysocket.MeshServer) {
 	roomname := room.GetRoomSlugInfo()
 	r.Slug = roomname
 	log.Println("Handeling data Server for ", roomname, server.GetGameName())
@@ -61,7 +61,7 @@ func (r *RoomData) HandleRoomData(room gomeshstream.Room, server gomeshstream.Me
 }
 
 // global room
-func (r *RoomData) handleServermessages(room gomeshstream.Room, server gomeshstream.MeshServer, message *gomeshstream.Message) {
+func (r *RoomData) handleServermessages(room simplysocket.Room, server simplysocket.MeshServer, message *simplysocket.Message) {
 
 	// Unmarshal the JSON data into the map
 	log.Println("game name:-", server.GetGameName(), message.Action)
@@ -141,13 +141,13 @@ func (r *RoomData) handleServermessages(room gomeshstream.Room, server gomeshstr
 	}
 }
 
-func (r *RoomData) FailToJoinRoomNotify(reason string, clientsinroom []string, room gomeshstream.Room, server gomeshstream.MeshServer) {
+func (r *RoomData) FailToJoinRoomNotify(reason string, clientsinroom []string, room simplysocket.Room, server simplysocket.MeshServer) {
 	reasonmsg := ""
 	log.Println("Client removed", clientsinroom[2])
 	if reason == "room-full" {
 		reasonmsg = "Failed to join the room its occupied"
 	}
-	message := &gomeshstream.Message{
+	message := &simplysocket.Message{
 		Action: "fail-join-room-notify",
 		Target: clientsinroom[2],
 		MessageBody: map[string]interface{}{
@@ -159,13 +159,13 @@ func (r *RoomData) FailToJoinRoomNotify(reason string, clientsinroom []string, r
 
 	room.BroadcastMessage(message)
 }
-func (r *GameRoomData) FailToJoinRoomNotify(reason string, clientsinroom []string, room gomeshstream.Room, server gomeshstream.MeshServer) {
+func (r *GameRoomData) FailToJoinRoomNotify(reason string, clientsinroom []string, room simplysocket.Room, server simplysocket.MeshServer) {
 	reasonmsg := ""
 	log.Println("Client removed", clientsinroom[2])
 	if reason == "room-full" {
 		reasonmsg = "Failed to join the room its occupied"
 	}
-	message := &gomeshstream.Message{
+	message := &simplysocket.Message{
 		Action: "fail-join-room-notify",
 		Target: clientsinroom[2],
 		MessageBody: map[string]interface{}{

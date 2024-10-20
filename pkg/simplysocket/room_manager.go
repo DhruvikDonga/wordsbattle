@@ -1,4 +1,4 @@
-package gomeshstream
+package simplysocket
 
 import (
 	"log"

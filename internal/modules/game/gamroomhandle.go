@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DhruvikDonga/wordsbattle/pkg/gomeshstream"
+	"github.com/DhruvikDonga/wordsbattle/pkg/simplysocket"
 )
 
 type GameRoomData struct {
@@ -37,7 +37,7 @@ type ClientProps struct { //this can depend on a inroom basis so it changes
 	Slug  string `json:"slug"`
 }
 
-func (r *GameRoomData) HandleRoomData(room gomeshstream.Room, server gomeshstream.MeshServer) {
+func (r *GameRoomData) HandleRoomData(room simplysocket.Room, server simplysocket.MeshServer) {
 	roomname := room.GetRoomSlugInfo()
 	r.Slug = room.GetRoomSlugInfo()
 
@@ -57,7 +57,7 @@ func (r *GameRoomData) HandleRoomData(room gomeshstream.Room, server gomeshstrea
 			switch clientsinroom[0] {
 			case "client-joined-room":
 				if r.HasGameStarted {
-					message := &gomeshstream.Message{
+					message := &simplysocket.Message{
 						Action: "fail-join-room-notify",
 						Target: clientsinroom[2],
 						MessageBody: map[string]interface{}{
@@ -90,7 +90,7 @@ func (r *GameRoomData) HandleRoomData(room gomeshstream.Room, server gomeshstrea
 }
 
 // game room
-func (r *GameRoomData) handleGameRoommessages(room gomeshstream.Room, server gomeshstream.MeshServer, message *gomeshstream.Message) {
+func (r *GameRoomData) handleGameRoommessages(room simplysocket.Room, server simplysocket.MeshServer, message *simplysocket.Message) {
 	switch message.Action {
 	case "set-client-name": //user sends to set his name we will then notify client list
 		colors := []string{"yellow", "red", "orange", "blue", "purple", "pink", "white"}
@@ -101,12 +101,12 @@ func (r *GameRoomData) handleGameRoommessages(room gomeshstream.Room, server gom
 		log.Printf("Set client props: %+v\n ", r.ClientProperties[message.Sender])
 		clientsinroom := []string{"client-list-notify", message.Target, message.Sender}
 		r.ClientListNotify(clientsinroom, room, server)
+		if r.IsRandomGame && r.PlayerLimit == len(r.ClientProperties) {
+			r.HandleStartGameMessage(clientsinroom[1], room, server)
+		}
 
 	case "start-the-game":
-		r.HandleStartGameMessage(message.Sender, message.Target, room, server)
-		go func() {
-			r.EndTheGameTimer(room, server)
-		}()
+		r.HandleStartGameMessage(message.Target, room, server)
 
 	case "send-message":
 		message.MessageBody["useravatar"] = r.ClientProperties[message.Sender].Name[:2]
@@ -132,7 +132,7 @@ type ClientsinRoomMessage struct { // we are using this to return list of client
 	ClientList []*ClientProps `json:"clientlist"` //message
 }
 
-func (r *GameRoomData) ClientListNotify(clientsinroom []string, room gomeshstream.Room, server gomeshstream.MeshServer) {
+func (r *GameRoomData) ClientListNotify(clientsinroom []string, room simplysocket.Room, server simplysocket.MeshServer) {
 	ret := []*ClientProps{}
 
 	if clientsinroom[0] == "client-left-room" {
@@ -143,6 +143,55 @@ func (r *GameRoomData) ClientListNotify(clientsinroom []string, room gomeshstrea
 		delete(r.ClientProperties, clientsinroom[2])
 
 		r.mu.Unlock()
+
+		if r.HasGameStarted && !r.HasGameEnded {
+			if len(r.ClientTurnList) == 1 {
+				//end the game
+				log.Println("the game in room ", room.GetRoomSlugInfo(), " ended due to 1 player left")
+				r.HasGameEnded = true
+				r.GameEnded <- true
+				message := &simplysocket.Message{
+					Action:      "send-message",
+					MessageBody: map[string]interface{}{"message": "Game ended successfully due to rest players left🍾 "},
+					Target:      room.GetRoomSlugInfo(),
+					Sender:      "bot-of-the-room",
+				}
+				room.BroadcastMessage(message)
+				time.Sleep(690 * time.Millisecond)
+				clist := r.ClientTurnList
+
+				sort.Slice(clist[:], func(i, j int) bool {
+					return clist[i].Score > clist[j].Score
+				})
+				wordlist := []string{}
+				for words := range r.Wordslist {
+					wordlist = append(wordlist, words)
+				}
+				messagestats := &simplysocket.Message{
+					Action:      "room-bot-end-game",
+					MessageBody: map[string]interface{}{"message": "Game ended successfully due to you are only left to play 🍾 ", "client_list": clist, "word_list": wordlist},
+					Target:      room.GetRoomSlugInfo(),
+					Sender:      "bot-of-the-room",
+				}
+				room.BroadcastMessage(messagestats)
+				return
+			} else {
+				//update the turn list
+				for slug, props := range r.ClientProperties {
+					temp := &ClientProps{
+						Color: props.Color,
+						Name:  props.Name,
+						Score: props.Score,
+						Slug:  slug,
+					}
+					ret = append(ret, temp)
+				}
+				sort.Slice(ret[:], func(i, j int) bool {
+					return ret[i].Slug < ret[j].Slug
+				})
+				r.ClientTurnList = ret
+			}
+		}
 
 	} else {
 		for slug, props := range r.ClientProperties {
@@ -159,7 +208,7 @@ func (r *GameRoomData) ClientListNotify(clientsinroom []string, room gomeshstrea
 		})
 		r.ClientTurnList = ret
 	}
-	message := &gomeshstream.Message{
+	message := &simplysocket.Message{
 		Action: "client-list-notify",
 		Target: clientsinroom[1],
 		MessageBody: map[string]interface{}{
@@ -172,8 +221,8 @@ func (r *GameRoomData) ClientListNotify(clientsinroom []string, room gomeshstrea
 	room.BroadcastMessage(message)
 }
 
-func (r *GameRoomData) KnowTheClient(clientsinroom []string, room gomeshstream.Room, server gomeshstream.MeshServer) {
-	message := &gomeshstream.Message{
+func (r *GameRoomData) KnowTheClient(clientsinroom []string, room simplysocket.Room, server simplysocket.MeshServer) {
+	message := &simplysocket.Message{
 		Action: "know-yourself",
 		Target: clientsinroom[2],
 		MessageBody: map[string]interface{}{
@@ -186,8 +235,8 @@ func (r *GameRoomData) KnowTheClient(clientsinroom []string, room gomeshstream.R
 	room.BroadcastMessage(message)
 }
 
-func (r *GameRoomData) GotRandomRoom(clientsinroom []string, room gomeshstream.Room, server gomeshstream.MeshServer) {
-	message := &gomeshstream.Message{
+func (r *GameRoomData) GotRandomRoom(clientsinroom []string, room simplysocket.Room, server simplysocket.MeshServer) {
+	message := &simplysocket.Message{
 		Action: "found-random-room-notify",
 		Target: clientsinroom[2],
 		MessageBody: map[string]interface{}{
@@ -200,8 +249,8 @@ func (r *GameRoomData) GotRandomRoom(clientsinroom []string, room gomeshstream.R
 	room.BroadcastMessage(message)
 }
 
-func (r *GameRoomData) JoinRoomNotify(clientsinroom []string, room gomeshstream.Room, server gomeshstream.MeshServer) {
-	message := &gomeshstream.Message{
+func (r *GameRoomData) JoinRoomNotify(clientsinroom []string, room simplysocket.Room, server simplysocket.MeshServer) {
+	message := &simplysocket.Message{
 		Action: "join-room-notify",
 		Target: clientsinroom[1],
 		MessageBody: map[string]interface{}{
@@ -214,7 +263,7 @@ func (r *GameRoomData) JoinRoomNotify(clientsinroom []string, room gomeshstream.
 	room.BroadcastMessage(message)
 
 	if clientsinroom[2] == room.GetRoomMakerInfo() {
-		roommakermessage := &gomeshstream.Message{
+		roommakermessage := &simplysocket.Message{
 			Action:         "is-room-maker",
 			Target:         clientsinroom[2],
 			MessageBody:    map[string]interface{}{"message": clientsinroom[2]},
@@ -226,10 +275,13 @@ func (r *GameRoomData) JoinRoomNotify(clientsinroom []string, room gomeshstream.
 	}
 }
 
-func (r *GameRoomData) HandleStartGameMessage(sender, target string, room gomeshstream.Room, server gomeshstream.MeshServer) {
+func (r *GameRoomData) HandleStartGameMessage(target string, room simplysocket.Room, server simplysocket.MeshServer) {
 	log.Println("start the game for room ", target)
 	r.HasGameStarted = true
-	message := &gomeshstream.Message{
+	go func() {
+		r.EndTheGameTimer(room, server)
+	}()
+	message := &simplysocket.Message{
 		Action: "room-bot-greetings",
 		Target: target,
 		MessageBody: map[string]interface{}{
@@ -242,7 +294,7 @@ func (r *GameRoomData) HandleStartGameMessage(sender, target string, room gomesh
 	room.BroadcastMessage(message)
 
 	time.Sleep(1 * time.Second)
-	botgreetingsmessage := &gomeshstream.Message{
+	botgreetingsmessage := &simplysocket.Message{
 		Action: "send-message",
 		Target: target,
 		Sender: "bot-of-the-room",
@@ -270,7 +322,7 @@ func (r *GameRoomData) HandleStartGameMessage(sender, target string, room gomesh
 		return clist[i].Slug < clist[j].Slug
 	})
 	r.ClientTurnList = clist
-	chattimemessage := &gomeshstream.Message{
+	chattimemessage := &simplysocket.Message{
 		Action: "message-by-bot",
 		Target: target,
 		Sender: "bot-of-the-room",
@@ -306,7 +358,7 @@ func (r *GameRoomData) HandleStartGameMessage(sender, target string, room gomesh
 				r.ClientTurnList = clist
 				r.WhichClientTurn = clist[0]
 				r.Letter = "w"
-				chattimeendmessage := &gomeshstream.Message{
+				chattimeendmessage := &simplysocket.Message{
 					Action: "message-by-bot",
 					Target: target,
 					Sender: "bot-of-the-room",
@@ -330,7 +382,7 @@ func (r *GameRoomData) HandleStartGameMessage(sender, target string, room gomesh
 
 }
 
-func (r *GameRoomData) TurnTheGameTimer(room gomeshstream.Room, server gomeshstream.MeshServer) {
+func (r *GameRoomData) TurnTheGameTimer(room simplysocket.Room, server simplysocket.MeshServer) {
 
 	endtime := time.After(10 * time.Second)
 	go func() {
@@ -339,7 +391,7 @@ func (r *GameRoomData) TurnTheGameTimer(room gomeshstream.Room, server gomeshstr
 			case <-endtime:
 				r.Rounds += 1
 				log.Println("the turn in room ", room.GetRoomSlugInfo(), " ended round", r.Rounds)
-				message := &gomeshstream.Message{
+				message := &simplysocket.Message{
 					Action:      "send-message",
 					MessageBody: map[string]interface{}{"message": "Game turn ended successfully 🍾 "},
 					Target:      room.GetRoomSlugInfo(),
@@ -354,7 +406,7 @@ func (r *GameRoomData) TurnTheGameTimer(room gomeshstream.Room, server gomeshstr
 				r.WhichClientTurn = nextplayer
 				resmessage := fmt.Sprintf("Word not guessed by, <b>%v<small>@%v</small></b> times up <br> now <b>%v<small>@%v</small></b> start with letter <b>%v</b> <br>Time starts now 10 seconds ⌛", currentplayer.Name, currentplayer.Slug, nextplayer.Name, nextplayer.Slug, r.Letter)
 
-				sendmessage := &gomeshstream.Message{
+				sendmessage := &simplysocket.Message{
 					Target:      room.GetRoomSlugInfo(),
 					MessageBody: map[string]interface{}{"message": resmessage, "whichclientturn": nextplayer, "clientstats": r.ClientTurnList, "letter": r.Letter, "timer": 11},
 					Action:      "message-by-bot",
@@ -365,7 +417,7 @@ func (r *GameRoomData) TurnTheGameTimer(room gomeshstream.Room, server gomeshstr
 				endtime = time.After(11 * time.Second)
 
 			case wordguessedbyclient := <-r.TurnAttempted:
-				message := &gomeshstream.Message{
+				message := &simplysocket.Message{
 					Action:      "send-message",
 					MessageBody: map[string]interface{}{"message": "Game turn ended successfully 🍾 "},
 					Target:      room.GetRoomSlugInfo(),
@@ -398,7 +450,7 @@ func (r *GameRoomData) TurnTheGameTimer(room gomeshstream.Room, server gomeshstr
 				}
 				r.WhichClientTurn = nextplayer
 
-				message = &gomeshstream.Message{
+				message = &simplysocket.Message{
 					Action:      "message-by-bot",
 					MessageBody: map[string]interface{}{"message": resmessage, "whichclientturn": nextplayer, "clientstats": r.ClientTurnList, "letter": r.Letter, "timer": 11},
 					Target:      room.GetRoomSlugInfo(),
@@ -420,7 +472,7 @@ func (r *GameRoomData) TurnTheGameTimer(room gomeshstream.Room, server gomeshstr
 	}()
 }
 
-func (r *GameRoomData) EndTheGameTimer(room gomeshstream.Room, server gomeshstream.MeshServer) {
+func (r *GameRoomData) EndTheGameTimer(room simplysocket.Room, server simplysocket.MeshServer) {
 
 	endtime := time.After(time.Duration(r.Endtime) * time.Second)
 	for {
@@ -429,7 +481,7 @@ func (r *GameRoomData) EndTheGameTimer(room gomeshstream.Room, server gomeshstre
 			log.Println("the game in room ", room.GetRoomSlugInfo(), " ended")
 			r.HasGameEnded = true
 			r.GameEnded <- true
-			message := &gomeshstream.Message{
+			message := &simplysocket.Message{
 				Action:      "send-message",
 				MessageBody: map[string]interface{}{"message": "Game ended successfully 🍾 "},
 				Target:      room.GetRoomSlugInfo(),
@@ -446,7 +498,7 @@ func (r *GameRoomData) EndTheGameTimer(room gomeshstream.Room, server gomeshstre
 			for words := range r.Wordslist {
 				wordlist = append(wordlist, words)
 			}
-			messagestats := &gomeshstream.Message{
+			messagestats := &simplysocket.Message{
 				Action:      "room-bot-end-game",
 				MessageBody: map[string]interface{}{"message": "Game ended successfully 🍾 ", "client_list": clist, "word_list": wordlist},
 				Target:      room.GetRoomSlugInfo(),
