@@ -368,9 +368,9 @@
                 </v-card>
             </v-container>
         </v-row>
-        <v-row  align="end" class="text-center" justify="center" >
+        <!-- <v-row  align="end" class="text-center" justify="center" >
             <p>This is a demo room</p>
-        </v-row>
+        </v-row> -->
     </v-container>
 </template>
   
@@ -452,7 +452,6 @@ export default {
             for (let i = 0; i < data.length; i++) {
                 let msg = JSON.parse(data[i]);
                 // display the message in the correct room.
-                console.log(msg)
 
                 if (msg.action=="join-room-notify" && msg.target == this.roomname) {
                     
@@ -478,7 +477,6 @@ export default {
                 if (msg.action=="client-list-notify" && msg.target == this.roomname) {
                     this.users=[]
                     this.playercount = msg.message_body.clientsinroomessage.length
-                    console.log(msg.message_body.clientsinroomessage)
 
                     msg.message_body.clientsinroomessage.forEach(element => {
                         this.user = {
@@ -566,7 +564,6 @@ export default {
                         }
                     }
                     if (msg.message_body.letter != "") {
-                        console.log("New letter came")
                         this.newletter = msg.message_body.letter
                     }
                     if (msg.message_body.whichclientturn != null) {
@@ -679,7 +676,6 @@ export default {
             if(this.ingamemessage !== "") {
                
                 if (this.newletter !="") { //game is on and the bot send a letter
-                    console.log("triggered send message to the bot",this.newletter)
                     this.usercanentermessage = false
                     this.usercanentermessagetimer = null
                     

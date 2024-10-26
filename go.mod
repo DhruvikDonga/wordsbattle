@@ -14,6 +14,7 @@ require (
 )
 
 require (
+	github.com/DhruvikDonga/simplysocket v1.0.0
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect

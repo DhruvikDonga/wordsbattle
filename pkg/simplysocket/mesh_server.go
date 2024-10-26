@@ -104,7 +104,6 @@ func NewMeshServer(name string, meshconf *MeshServerConfig, rd RoomData) *meshSe
 
 		roomdata: rd,
 	}
-	//this one is global room created by package itself
 	r := &room{
 		id:                server.roomcnt,
 		slug:              MeshGlobalRoom,
@@ -242,6 +241,13 @@ func (server *meshServer) DisconnectClient(client *client) {
 						close(r.stopped)
 						delete(server.rooms, roomname)
 					}
+				}
+			} else {
+				select {
+				case server.rooms[roomname].clientInRoomEvent <- []string{"client-left-room", roomname, client.slug}:
+					log.Println("client ", client.slug, " left a room ", roomname)
+				default:
+					log.Println("Failed to trigger left room trigger for client ", client.slug, " in room", roomname)
 				}
 			}
 		}

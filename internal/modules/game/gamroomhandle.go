@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DhruvikDonga/wordsbattle/pkg/simplysocket"
+	"github.com/DhruvikDonga/simplysocket"
 )
 
 type GameRoomData struct {

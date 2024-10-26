@@ -3,7 +3,7 @@ package game
 import (
 	"log"
 
-	"github.com/DhruvikDonga/wordsbattle/pkg/simplysocket"
+	"github.com/DhruvikDonga/simplysocket"
 )
 
 const (
@@ -137,7 +137,6 @@ func (r *RoomData) handleServermessages(room simplysocket.Room, server simplysoc
 			}
 
 		}
-
 	}
 }
 

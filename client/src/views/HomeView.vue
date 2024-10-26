@@ -20,17 +20,17 @@
         <div v-if="active!= null">Current online :- {{ active }}</div>
         <v-container>
           <v-row align="center" justify="center"> 
-            <v-col cols="auto">
+            <!-- <v-col cols="auto">
               <v-btn block rounded primary @click="playwithfriend()" color="blue-darken-4" append-icon="mdi-account-group"  style="font-family: Cambria; text-transform: unset">Play with friends</v-btn>
             </v-col>    
             <v-col cols="auto">
               <v-btn block  rounded @click="playwithrandomfriend()" color="yellow" append-icon="mdi-account-multiple" style="font-family: Cambria; text-transform: unset">Random Game</v-btn>
-            </v-col>
+            </v-col> -->
             <v-col cols="auto">
-              <v-btn block rounded primary @click="playwithfriendgm()" color="blue-darken-4" append-icon="mdi-account-group"  style="font-family: Cambria; text-transform: unset">Play COW with friends</v-btn>
+              <v-btn block rounded primary @click="playwithfriendgm()" color="blue-darken-4" append-icon="mdi-account-group"  style="font-family: Cambria; text-transform: unset">Play with friends</v-btn>
             </v-col> 
             <v-col cols="auto">
-              <v-btn block  rounded @click="playwithrandomfriendgm()" color="yellow" append-icon="mdi-account-multiple" style="font-family: Cambria; text-transform: unset">Random COW Game</v-btn>
+              <v-btn block  rounded @click="playwithrandomfriendgm()" color="yellow" append-icon="mdi-account-multiple" style="font-family: Cambria; text-transform: unset">Random Game</v-btn>
             </v-col> 
             <v-dialog
               v-model="dialog"
