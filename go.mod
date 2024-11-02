@@ -3,6 +3,7 @@ module github.com/DhruvikDonga/wordsbattle
 go 1.21.3
 
 require (
+	github.com/DhruvikDonga/simplysocket v0.1.0
 	github.com/go-chi/chi/v5 v5.0.8
 	github.com/go-chi/cors v1.2.1
 	github.com/golang-jwt/jwt v3.2.2+incompatible
@@ -14,7 +15,6 @@ require (
 )
 
 require (
-	github.com/DhruvikDonga/simplysocket v1.0.0
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
