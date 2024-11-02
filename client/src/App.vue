@@ -5,12 +5,14 @@ import { Transition } from 'vue';
   <v-app>
    <v-app-bar color="purple darken-4" class="text-center"  app>
       <v-toolbar-title>
-        Clash of Words <span style="font-size:x-small;font-stretch:extra-expanded;">v1.0.0</span>
+        Clash of Words <span style="font-size:x-small;font-stretch:extra-expanded;"><a href="https://github.com/DhruvikDonga/simplysocket">simplysocket-v1.0.0</a>
+
+        </span>
       </v-toolbar-title>
-      <div class="pr-1">
+      <!-- <div class="pr-1">
         <v-btn density="compact" icon="mdi-github"></v-btn>
       
-      </div>
+      </div> -->
    </v-app-bar>
     <v-main>
       <v-container fluid >
@@ -27,6 +29,15 @@ import { Transition } from 'vue';
           </Transition>
 
         </router-view>
+        <!-- <router-view v-slot="{ Component }">
+          <Transition mode="out-in">
+            <keep-alive exclude="PlaywithFriendGM">
+              <component :is="Component" />
+            </keep-alive>
+
+          </Transition>
+
+        </router-view> -->
         </v-container>
       </v-main>
     <v-footer max-height="200"  app class="d-flex justify-start ">

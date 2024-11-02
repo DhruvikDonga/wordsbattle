@@ -1,5 +1,5 @@
-// chatserver make sure we can send and receive messages with our connected client. In order to keep track of the connected clients at the server.
-package handler
+// lobbyserver make sure we can send and receive messages with our connected client. In order to keep track of the connected clients at the server.
+package cowgameclient
 
 import (
 	"encoding/json"
@@ -7,7 +7,7 @@ import (
 	"strconv"
 )
 
-type WsServer struct {
+type LobbyServer struct {
 	clients           map[*Client]bool          // clients registered in server wsclients.go
 	register          chan *Client              // request to register a client
 	unregister        chan *Client              // request to unregister a client
@@ -16,9 +16,9 @@ type WsServer struct {
 	rooms             map[*Room]bool            // rooms created
 }
 
-// NewWebSocketServer initialize new websocket server
-func NewWebSocketServer() *WsServer {
-	return &WsServer{
+// NewLobbyServer initialize new websocket server
+func NewLobbyServer() *LobbyServer {
+	return &LobbyServer{
 		clients:           make(map[*Client]bool),
 		register:          make(chan *Client),
 		unregister:        make(chan *Client),
@@ -28,8 +28,8 @@ func NewWebSocketServer() *WsServer {
 	}
 }
 
-// Run websocket server accepting various requests
-func (server *WsServer) Run() {
+// Run lobby server accepting various requests
+func (server *LobbyServer) Run() {
 	for {
 		select {
 		case client := <-server.register:
@@ -50,30 +50,30 @@ func (server *WsServer) Run() {
 	}
 }
 
-func (server *WsServer) registerClient(client *Client) {
+func (server *LobbyServer) registerClient(client *Client) {
 
 	server.clients[client] = true
 }
 
-func (server *WsServer) unregisterClient(client *Client) {
+func (server *LobbyServer) unregisterClient(client *Client) {
 	if _, ok := server.clients[client]; ok {
 		delete(server.clients, client)
 	}
 
 }
 
-func (server *WsServer) broadcastToClients(message []byte) {
+func (server *LobbyServer) broadcastToClients(message []byte) {
 	for client := range server.clients {
 		client.send <- message //Client
 	}
 }
-func (server *WsServer) broadcastToAClient(message map[*Client]*Message) { //this message should be containing one key and one value though
+func (server *LobbyServer) broadcastToAClient(message map[*Client]*Message) { //this message should be containing one key and one value though
 	for client, message := range message {
 		client.send <- message.encode() //Client
 	}
 }
 
-func (server *WsServer) broadcastActiveMessage() {
+func (server *LobbyServer) broadcastActiveMessage() {
 	activeusers := map[string]string{
 		"activenow": strconv.Itoa(len(server.clients)),
 	}
@@ -86,7 +86,7 @@ func (server *WsServer) broadcastActiveMessage() {
 	server.broadcastToClients(jsonStr)
 }
 
-func (server *WsServer) findRoom(name string) *Room {
+func (server *LobbyServer) findRoom(name string) *Room {
 	var foundroom *Room
 	for room := range server.rooms {
 		if room.name == name {
@@ -99,7 +99,7 @@ func (server *WsServer) findRoom(name string) *Room {
 	return foundroom
 }
 
-func (server *WsServer) createRoom(name string, client *Client, playerlimit int, israndom bool) *Room {
+func (server *LobbyServer) createRoom(name string, client *Client, playerlimit int, israndom bool) *Room {
 
 	room := NewRoom(name, server, client)
 	room.playerlimit = playerlimit //play with friend
@@ -110,7 +110,7 @@ func (server *WsServer) createRoom(name string, client *Client, playerlimit int,
 	return room
 
 }
-func (server *WsServer) deleteRoom(room *Room) {
+func (server *LobbyServer) deleteRoom(room *Room) {
 	log.Println("room deleted", room.name)
 	if _, ok := server.rooms[room]; ok {
 		delete(server.rooms, room)

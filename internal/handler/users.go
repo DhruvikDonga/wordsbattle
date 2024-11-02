@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/DhruvikDonga/wordsbattle/cmd/server/modules/users"
+	"github.com/DhruvikDonga/wordsbattle/internal/modules/users"
 	"github.com/lib/pq"
 	"golang.org/x/crypto/bcrypt"
 

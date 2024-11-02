@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"net/http"
 
+	"github.com/DhruvikDonga/simplysocket"
+	"github.com/DhruvikDonga/wordsbattle/internal/modules/game"
 	"github.com/DhruvikDonga/wordsbattle/pkg/db"
 	"github.com/DhruvikDonga/wordsbattle/util"
 	"github.com/go-chi/chi/v5"
@@ -27,7 +29,7 @@ func NewApp(pgdb *sql.DB, conf util.Config) *App {
 
 func RouteService(app *App) http.Handler {
 	r := chi.NewRouter()
-
+	//messagehandler := cowgameclient.ClientCustomMessage{}
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
@@ -41,13 +43,11 @@ func RouteService(app *App) http.Handler {
 		MaxAge:           300, // Maximum value not ignored by any of major browsers
 	}))
 
-	// start websocket server
-	wsServer := NewWebSocketServer()
-	go wsServer.Run()
-
-	// initialize websocket connection
-	r.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
-		ServeWs(wsServer, w, r)
+	roomdata := &game.RoomData{RandomRooms: []string{}}
+	ms := simplysocket.NewMeshServer("cowgame", &simplysocket.MeshServerConfig{DirectBroadCast: false}, roomdata)
+	// initialize websocket link cowgame connection clash of words
+	r.HandleFunc("/wsmesh", func(w http.ResponseWriter, r *http.Request) {
+		simplysocket.ServeWs(ms, w, r)
 	})
 
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {

@@ -1,4 +1,4 @@
-package gameserver
+package game
 
 var Worddictionary = map[string]bool{}
 

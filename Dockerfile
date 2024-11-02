@@ -1,5 +1,5 @@
 # Build Stage
-FROM golang:1.19-alpine as development
+FROM golang:1.23-alpine as development
 
 # Set environment variable
 ENV APP_NAME wordsbattle

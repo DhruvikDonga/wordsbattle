@@ -20,12 +20,18 @@
         <div v-if="active!= null">Current online :- {{ active }}</div>
         <v-container>
           <v-row align="center" justify="center"> 
-            <v-col cols="auto">
+            <!-- <v-col cols="auto">
               <v-btn block rounded primary @click="playwithfriend()" color="blue-darken-4" append-icon="mdi-account-group"  style="font-family: Cambria; text-transform: unset">Play with friends</v-btn>
             </v-col>    
             <v-col cols="auto">
               <v-btn block  rounded @click="playwithrandomfriend()" color="yellow" append-icon="mdi-account-multiple" style="font-family: Cambria; text-transform: unset">Random Game</v-btn>
-            </v-col>
+            </v-col> -->
+            <v-col cols="auto">
+              <v-btn block rounded primary @click="playwithfriendgm()" color="blue-darken-4" append-icon="mdi-account-group"  style="font-family: Cambria; text-transform: unset">Play with friends</v-btn>
+            </v-col> 
+            <v-col cols="auto">
+              <v-btn block  rounded @click="playwithrandomfriendgm()" color="yellow" append-icon="mdi-account-multiple" style="font-family: Cambria; text-transform: unset">Random Game</v-btn>
+            </v-col> 
             <v-dialog
               v-model="dialog"
               width="auto"
@@ -200,6 +206,14 @@ export default {
       },
       playwithrandomfriend() {
         router.push({path: '/play-random'});
+      },
+      playwithfriendgm() {
+        // `route` is either a string or object
+        let roomname = this.makeroom(10)
+        router.push({path: '/play-gm', query: {room: roomname}});
+      },
+      playwithrandomfriendgm() {
+        router.push({path: '/play-random-gm'});
       },
       makeroom(length) {
           let result = '';
