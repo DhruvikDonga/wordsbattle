@@ -5,6 +5,7 @@ import (
 	"log"
 	"math/rand"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -95,11 +96,17 @@ func (r *GameRoomData) handleGameRoommessages(room simplysocket.Room, server sim
 	case "set-client-name": //user sends to set his name we will then notify client list
 		colors := []string{"yellow", "red", "orange", "blue", "purple", "pink", "white"}
 		color := colors[rand.Intn(len(colors))]
+		clientsinroom := []string{"client-list-notify", message.Target, message.Sender}
+		log.Println("Players in the room before new added ", clientsinroom[1], " are", len(r.ClientProperties), " and player limit is ", r.PlayerLimit)
+		if r.PlayerLimit <= len(r.ClientProperties) {
+			clientsinroom := []string{"join-room", clientsinroom[1], clientsinroom[2]}
+			r.FailToJoinRoomNotify("room-full", clientsinroom, room, server)
+			return
+		}
 		r.mu.Lock()
 		r.ClientProperties[message.Sender] = &ClientProps{Name: message.MessageBody["setname"].(string), Color: color, Score: 0}
 		r.mu.Unlock()
 		log.Printf("Set client props: %+v\n ", r.ClientProperties[message.Sender])
-		clientsinroom := []string{"client-list-notify", message.Target, message.Sender}
 		r.ClientListNotify(clientsinroom, room, server)
 		if r.IsRandomGame && r.PlayerLimit == len(r.ClientProperties) {
 			r.HandleStartGameMessage(clientsinroom[1], room, server)
@@ -107,6 +114,23 @@ func (r *GameRoomData) handleGameRoommessages(room simplysocket.Room, server sim
 
 	case "start-the-game":
 		r.HandleStartGameMessage(message.Target, room, server)
+
+	case "room-settings":
+		et, _ := strconv.Atoi(message.MessageBody["game_duration"].(string))
+		pl, _ := strconv.Atoi(message.MessageBody["player_limit"].(string))
+		r.mu.Lock()
+		r.Endtime = et
+		r.PlayerLimit = pl
+		r.mu.Unlock()
+		log.Println("Player limit changed:-", r.PlayerLimit)
+		res := &simplysocket.Message{
+			Action:         "room-setting-applied",
+			Target:         message.Target,
+			MessageBody:    map[string]interface{}{"message": "Room settings applied successfully Player Limit:- " + message.MessageBody["player_limit"].(string) + " Time duration :-" + message.MessageBody["game_duration"].(string)},
+			Sender:         "bot-of-the-room",
+			IsTargetClient: false,
+		}
+		room.BroadcastMessage(res)
 
 	case "send-message":
 		message.MessageBody["useravatar"] = r.ClientProperties[message.Sender].Name[:2]
