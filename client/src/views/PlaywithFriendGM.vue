@@ -48,7 +48,7 @@
         <!-- This v-row starts only when user is done with processing his name and websocket connection is established (loader)-->
         <v-row v-if="loader==false && nameformdone==true && isthegamestarted == false && roomname!=null" class="text-center d-flex flex-column" align="start">
             <!-- Generate users avatar -->
-            <v-col v-if="users.length>0" >
+            <v-col v-if="users.length>0 &&  gotthrownout != true">
                 <v-container>
                     <v-row align="start" style="height: auto;" class="">
                     <v-col align-self="center" v-for="user in users" :key="user" class="px-0 mx-0">
@@ -72,6 +72,12 @@
             <v-col class="mb-4"  v-for="alert in failedalerts" :key="alert">
                 <v-alert
                     type="error"
+                    closable
+                >{{ alert.message_body.message }}</v-alert>
+            </v-col>
+            <v-col class="mb-4"  v-for="alert in notifyalert" :key="alert">
+                <v-alert
+                    type="info"
                     closable
                 >{{ alert.message_body.message }}</v-alert>
             </v-col>
@@ -117,7 +123,7 @@
                 </v-snackbar>
 
                 <!-- Start the game button will come up once the room is occupied  -->
-                <v-container v-if="playercount >= 2 && israndomgame != true">
+                <v-container v-if="playercount >= 2 && israndomgame != true && gotthrownout != true">
                     <v-card
                         class="mx-auto"
                         max-width="344"
@@ -129,6 +135,61 @@
                                 <h3>Hold tight we gotta go in lads 🐱‍🏍</h3>
                                 <small v-if="isroomaker && startthegamebuttonloader == false">your friend is waiting let's start this game 😃</small>
                                 <!-- Roommaker can start the game -->
+                                <div v-if="isroomaker==true && gamesettingsapplied==false">
+                                    <v-form ref="form" @submit.prevent="applyRoomSettings">
+                                    <!-- Player Limit Range -->
+                                    <v-row>
+                                    <v-col cols="12">
+                                        <v-slider
+                                        v-model="playerlimit"
+                                        :min="2"
+                                        :max="10"
+                                        label="Player Limit"
+                                        thumb-label="always"
+                                        step="1"
+                                        class="mt-3"
+                                        >
+                                        <template v-slot:append>
+                                            <span>{{ playerlimit }} Players</span>
+                                        </template>
+                                        </v-slider>
+                                    </v-col>
+                                    </v-row>
+
+                                    <!-- Time Range -->
+                                    <v-row>
+                                    <v-col cols="12">
+                                        <v-slider
+                                        v-model="gameduration"
+                                        :min="20"
+                                        :max="180"
+                                        color="orange"
+                                        label="Game Time (seconds)"
+                                        thumb-label="always"
+                                        step="10"
+                                        class="mt-3"
+                                        >
+                                        <template v-slot:append>
+                                            <span>{{ gameduration }} sec</span>
+                                        </template>
+                                        </v-slider>
+                                    </v-col>
+                                    </v-row>
+
+                                    
+                                    <v-btn
+                                    v-if="isroomaker==true"
+                                    block
+                                    class="mt-3"
+                                    color="purple"
+                                    rounded
+                                    @click="applyRoomSettings"
+                                    >
+                                    Apply Room Settings
+                                    </v-btn>
+                                    </v-form>
+
+                                </div>
                                 <v-btn v-if="isroomaker==true && startthegamebuttonloader == false" block class="mt-3" color="purple" rounded @click="startTheGame">Start the Game 🥁</v-btn>
                                 <v-btn v-if="isroomaker==true && startthegamebuttonloader == true" block class="mt-3" color="purple" rounded outlined>
                                 <v-progress-circular
@@ -201,7 +262,7 @@
         </v-row>
 
         <!-- Game container when loader is false nameformdone is true isthegamestarted is true isthgamestoped is false -->
-        <v-row v-if="loader==false && nameformdone==true && isthegamestarted == true && isthegamestoped == false && roomname!=null" style="height: auto;" class="text-center d-flex flex-column pb-0" align="start" >
+        <v-row v-if="loader==false && nameformdone==true && isthegamestarted == true && isthegamestoped == false && roomname!=null && gotthrownout != true" style="height: auto;" class="text-center d-flex flex-column pb-0" align="start" >
             <v-container max-width="500" class="mt-0 pt-0 pb-0 mb-0" style="height:auto;">
                 <v-row align="start" style="height: auto;" class="">
                     <v-col align-self="center">
@@ -297,7 +358,7 @@
         </v-row>
 
         <!-- Game ends with score board and leave room button -->
-        <v-row v-if="loader==false && nameformdone==true && isthegamestarted == true && isthegamestoped == true" style="height: auto;" class="text-center d-flex flex-column pb-0" align="start" >
+        <v-row v-if="loader==false && nameformdone==true && isthegamestarted == true && isthegamestoped == true && gotthrownout != true" style="height: auto;" class="text-center d-flex flex-column pb-0" align="start" >
             <v-container>
                 <v-card
                     class="mx-auto"
@@ -392,6 +453,7 @@ export default {
         israndomgame: false,
         isthegamestarted: false, //game starts close all other container and focus on this
         gamestarttimer: null,
+        totalGameTime: null,
         gameloaderticker: 0,
         gameloadercolor: "blue",
         isthegamestoped: false, //when game stops either due to playercount decreased or game ends
@@ -416,6 +478,7 @@ export default {
         gameticker:null,
         nextclientslug: "", //if its empty then new client
         alerts:[],
+        notifyalert:[],
         wordslist:[],
         userstats: [], //[{username:,userslug:,color:}]
         users: [], //[{username:,userslug:,color:}]
@@ -430,6 +493,9 @@ export default {
         youruserslug:"", //userslug of the client
         failedalerts:[],
         playercount:0,
+        playerlimit:3,
+        gameduration:30,
+        gamesettingsapplied:false,
         loader: false,
         nameformdone: false,
         colors:["blue","yellow","red","orange","purple"],
@@ -491,8 +557,12 @@ export default {
                 }
 
                 if (msg.action=="room-bot-greetings" && msg.target == this.roomname) {
+                    if (this.gotthrownout==true) {
+                        return
+                    }
                     this.isthegamestarted = true
-                    this.gamestarttimer = 180
+                    this.gamestarttimer = this.gameduration
+                    this.totalGameTime = this.gameduration
                     this.gameCountDownTimer()
                 }
                 if (msg.action=="room-bot-end-game" && msg.target == this.roomname) {
@@ -546,6 +616,13 @@ export default {
                 if (msg.action=="room-client-message" && msg.target == this.roomname) { //message from client  must be when new word by him is broadcasted to all
                     //message
                     //sender
+                }
+
+                if (msg.action=="room-setting-applied" && msg.target == this.roomname) {
+                    this.notifyalert.push(msg)
+                    if(this.isroomaker) {
+                        this.gamesettingsapplied = true
+                    }
                 }
 
                 if (msg.action=="message-by-bot" && msg.target == this.roomname) { //message from room server 
@@ -637,6 +714,12 @@ export default {
             }.bind(this));
             this.startthegamebuttonloader = true
         },
+        applyRoomSettings() {
+            this.waitForSocketConnection(this.ws, function() {
+                this.ws.send(JSON.stringify({ action: 'room-settings',  message_body:{ game_duration:  String(this.gameduration),player_limit: String(this.playerlimit)},target: this.roomname ,sender:this.userslug }));
+            }.bind(this));
+            this.applyRoomSettings = true
+        },
         leaveTheRoom() {
             this.waitForSocketConnection(this.ws, function() {
                 this.ws.send(JSON.stringify({ action: 'leave-room', message_body:{message:this.roomname },target:this.roomname}));
@@ -698,21 +781,31 @@ export default {
                 }
             }
         },
-        gameCountDownTimer () {
-            if (this.gamestarttimer > 0) {
-                setTimeout(() => {
-                    this.gamestarttimer -= 1
-                    //180 seconds  == 100% , 1 second = 0.555
-                    this.gameloaderticker =this.gameloaderticker + 0.555
-                    if (this.gamestarttimer <= 90 && this.gamestarttimer > 30) {
-                        this.gameloadercolor = "yellow"
-                    }
-                    if (this.gamestarttimer <= 30) {
-                        this.gameloadercolor = "red"
-                    }
-                    this.gameCountDownTimer()
-                }, 1000)
-            } 
+        gameCountDownTimer() {
+        if (this.gamestarttimer > 0) {
+        setTimeout(() => {
+            this.gamestarttimer -= 1;
+
+            // Calculate the percentage of remaining time
+            let timerPercentage = (this.gamestarttimer / this.totalGameTime) * 100;
+
+            // Calculate the increment per second dynamically based on total game time
+            let incrementPerSecond = 100 / this.totalGameTime;  // e.g., 100 / 180 = 0.555 for 180 seconds
+
+            // Increment the gameloaderticker by the dynamic value
+            this.gameloaderticker += incrementPerSecond;
+
+            // Change color based on the percentage
+            if (timerPercentage <= 90 && timerPercentage > 30) {
+                this.gameloadercolor = "yellow";
+            } else if (timerPercentage <= 30) {
+                this.gameloadercolor = "red";
+            }
+
+            // Recursive call for the countdown
+            this.gameCountDownTimer();
+        }, 1000);
+    }
         },
         inGamecountDownTimer () {
             this.usercanentermessage = true

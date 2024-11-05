@@ -83,16 +83,9 @@ func (r *RoomData) handleServermessages(room simplysocket.Room, server simplysoc
 		}
 		log.Println("JoinRoomAction ", message.Sender, message.MessageBody, room.GetRoomSlugInfo())
 		roomname := message.MessageBody["roomname"].(string)
-		inroomcnt := len(server.GetClientsInRoom()[roomname])
-		log.Println("Players in the room before new added ", roomname, " are", inroomcnt, " and player limit is ", rd.PlayerLimit)
-		if inroomcnt < rd.PlayerLimit {
-			server.JoinClientRoom(roomname, message.Sender, &rd)
-			log.Println("request send to join a room")
-		} else {
+		server.JoinClientRoom(roomname, message.Sender, &rd)
+		log.Println("request send to join a room")
 
-			clientsinroom := []string{"join-room", roomname, message.Sender}
-			r.FailToJoinRoomNotify("room-full", clientsinroom, room, server)
-		}
 	case "join-random-room":
 		rd := GameRoomData{
 			IsRandomGame:     true,
