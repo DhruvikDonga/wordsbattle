@@ -14,6 +14,9 @@ MiniWordGames is an engaging multiplayer word game that combines the thrill of r
 - **Vue.js Frontend:** A dynamic and interactive user interface designed with Vue.js for a smooth gaming experience.
 - **Dockerized Multistaged Deployment:** Easily deploy and manage the application using Docker containers which are small and lightweight.
 
+## SimplySocket
+
+Wordsbattle uses simplysocket package for better rooms,events and message [link](https://github.com/DhruvikDonga/simplysocket)
 
 ## Architecture  
 ```mermaid
