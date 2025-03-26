@@ -1,0 +1,15 @@
+/* style.css */
+.player-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+}
+  
+.button-group {
+display: flex;
+flex-direction: column;
+gap: 8px;
+margin-top: 16px;
+}
+  
