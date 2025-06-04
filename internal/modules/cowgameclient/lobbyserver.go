@@ -56,9 +56,7 @@ func (server *LobbyServer) registerClient(client *Client) {
 }
 
 func (server *LobbyServer) unregisterClient(client *Client) {
-	if _, ok := server.clients[client]; ok {
-		delete(server.clients, client)
-	}
+	delete(server.clients, client)
 
 }
 
@@ -112,8 +110,6 @@ func (server *LobbyServer) createRoom(name string, client *Client, playerlimit i
 }
 func (server *LobbyServer) deleteRoom(room *Room) {
 	log.Println("room deleted", room.name)
-	if _, ok := server.rooms[room]; ok {
-		delete(server.rooms, room)
-	}
+	delete(server.rooms, room)
 
 }

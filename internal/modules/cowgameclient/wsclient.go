@@ -7,6 +7,7 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -31,14 +32,8 @@ const (
 	maxMessageSize = 10000
 )
 
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  4096,
-	WriteBufferSize: 4096,
-}
-
 var (
 	newline = []byte{'\n'}
-	space   = []byte{' '}
 )
 
 type ClientGameMetadata struct { //some properties constraint to a room
@@ -57,6 +52,7 @@ type Client struct {
 	room         *Room               //a client will be in one room at a time
 	ingame       bool                //is in any game
 	Gamemetadata *ClientGameMetadata `json:"clientgamemetadata"`
+	closeOnce    sync.Once
 }
 
 // NewClient initialize new websocket client like App server in routes.go
@@ -93,12 +89,20 @@ func (client *Client) readPump() {
 				log.Printf("\nunexepected close error: %v", err)
 				break
 			}
+
 			room := client.room
-			if _, ok := room.clients[client]; ok {
-				delete(room.clients, client)
-				if len(room.clients) == 0 {
-					room.stoproom <- true
+			if room != nil && room.clients != nil {
+				room.mu.Lock()
+				if _, ok := room.clients[client]; ok {
+					delete(room.clients, client)
+					if len(room.clients) == 0 {
+						select {
+						case room.stoproom <- true:
+						default:
+						}
+					}
 				}
+				room.mu.Unlock()
 			}
 
 			break
@@ -121,7 +125,7 @@ func (client *Client) writePump() {
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
 		ticker.Stop()
-		client.conn.Close()
+		client.disconnect()
 	}()
 
 	for {
@@ -162,10 +166,15 @@ func (client *Client) writePump() {
 func (client *Client) disconnect() {
 	log.Println("disconnect", client.Slug)
 	client.wsServer.unregister <- client //remove client from webserver map list
-	if _, ok := client.wsServer.rooms[client.room]; ok {
-		client.room.unregister <- client //unregister to game room
+	if client.room != nil {
+		select {
+		case client.room.unregister <- client:
+		default:
+		}
 	}
-	close(client.send)  //close the sending channel
+	client.closeOnce.Do(func() {
+		close(client.send)
+	}) //close the sending channel
 	client.conn.Close() //close the client connection
 }
 
