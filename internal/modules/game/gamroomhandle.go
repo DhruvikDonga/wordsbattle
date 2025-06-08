@@ -13,6 +13,35 @@ import (
 	"github.com/DhruvikDonga/simplysocket"
 )
 
+const (
+	ChatTimerDuration     = 10 * time.Second
+	TurnTimerDuration     = 10 * time.Second
+	NextTurnTimerDuration = 11 * time.Second
+	PostGameDelay         = 690 * time.Millisecond
+	BotSender             = "bot-of-the-room"
+	BotName               = "Gawd"
+	InitialLetter         = "w"
+	ActionByBot           = "message-by-bot"
+	// Message action constant
+	ActionSetClientName      = "set-client-name"
+	ActionStartGame          = "start-the-game"
+	ActionRoomSettings       = "room-settings"
+	ActionSendMessage        = "send-message"
+	ActionAttemptWord        = "attempt-word"
+	ActionClientListNotify   = "client-list-notify"
+	ActionFailJoinRoom       = "fail-join-room-notify"
+	ActionRoomBotGreetings   = "room-bot-greetings"
+	ActionKnowYourself       = "know-yourself"
+	ActionFoundRandomRoom    = "found-random-room-notify"
+	ActionJoinRoomNotify     = "join-room-notify"
+	ActionIsRoomMaker        = "is-room-maker"
+	ActionRoomBotEndGame     = "room-bot-end-game"
+	ActionRoomSettingApplied = "room-setting-applied"
+	ActionClientJoinedRoom   = "client-joined-room"
+	ActionClientLeftRoom     = "client-left-room"
+	ActionJoinRoom           = "join-room"
+)
+
 var ColorList = []string{"yellow", "red", "orange", "blue", "purple", "pink", "white"}
 
 type GameRoomData struct {
@@ -62,15 +91,15 @@ func (r *GameRoomData) HandleRoomData(room simplysocket.Room, server simplysocke
 		case clientsinroom := <-room.EventTriggers():
 			log.Println("Event triggered", clientsinroom[0], clientsinroom[1], clientsinroom[2])
 			switch clientsinroom[0] {
-			case "client-joined-room":
+			case ActionClientJoinedRoom:
 				if r.HasGameStarted {
 					message := &simplysocket.Message{
-						Action: "fail-join-room-notify",
+						Action: ActionFailJoinRoom,
 						Target: clientsinroom[2],
 						MessageBody: map[string]interface{}{
 							"message": "The game in the room has already started",
 						},
-						Sender:         "bot-of-the-room",
+						Sender:         BotSender,
 						IsTargetClient: true,
 					}
 
@@ -83,7 +112,7 @@ func (r *GameRoomData) HandleRoomData(room simplysocket.Room, server simplysocke
 					r.KnowTheClient(clientsinroom, room, server)  //to only the client
 				}
 
-			case "client-left-room":
+			case ActionClientLeftRoom:
 				r.ClientListNotify(clientsinroom, room, server)
 
 			}
@@ -99,26 +128,26 @@ func (r *GameRoomData) HandleRoomData(room simplysocket.Room, server simplysocke
 // game room
 func (r *GameRoomData) handleGameRoommessages(room simplysocket.Room, server simplysocket.MeshServer, message *simplysocket.Message) {
 	switch message.Action {
-	case "set-client-name": //user sends to set his name we will then notify client list
+	case ActionSetClientName: //user sends to set his name we will then notify client list
 		r.handleSetClientName(message, room, server)
-	case "start-the-game":
+	case ActionStartGame:
 		r.HandleStartGameMessage(message.Target, room, server)
-	case "room-settings":
+	case ActionRoomSettings:
 		r.handleRoomSettings(message, room)
-	case "send-message":
+	case ActionSendMessage:
 		r.broadcastClientMessage(message, room)
-	case "attempt-word":
+	case ActionAttemptWord:
 		r.handleAttemptWord(message, room)
 	}
 }
 
 func (r *GameRoomData) handleSetClientName(message *simplysocket.Message, room simplysocket.Room, server simplysocket.MeshServer) {
-	clientsinroom := []string{"client-list-notify", message.Target, message.Sender}
+	clientsinroom := []string{ActionClientListNotify, message.Target, message.Sender}
 	log.Println("Players in the room before new added ", clientsinroom[1], " are", len(r.ClientProperties), " and player limit is ", r.PlayerLimit)
 	r.mu.Lock()
 	if r.PlayerLimit <= len(r.ClientProperties) {
 		r.mu.Unlock()
-		clientsinroom := []string{"join-room", clientsinroom[1], clientsinroom[2]}
+		clientsinroom := []string{ActionJoinRoom, clientsinroom[1], clientsinroom[2]}
 		r.FailToJoinRoomNotify("room-full", clientsinroom, room, server)
 		return
 	}
@@ -140,21 +169,21 @@ func (r *GameRoomData) HandleStartGameMessage(target string, room simplysocket.R
 	}()
 
 	room.BroadcastMessage(&simplysocket.Message{
-		Action: "room-bot-greetings",
+		Action: ActionRoomBotGreetings,
 		Target: target,
 		MessageBody: map[string]interface{}{
 			"message": "welcome",
 		},
-		Sender:         "bot-of-the-room",
+		Sender:         BotSender,
 		IsTargetClient: false,
 	})
 
 	time.Sleep(1 * time.Second)
 
 	room.BroadcastMessage(&simplysocket.Message{
-		Action: "send-message",
+		Action: ActionSendMessage,
 		Target: target,
-		Sender: "bot-of-the-room",
+		Sender: BotSender,
 		MessageBody: map[string]interface{}{
 			"message": "Yo this is <b>Bot<small>@room-<small>" + target + "</small></small></b> here . I will be having my 👀 eyes over you if you playing fair, update the score board and assign you new letter",
 			"letter":  "",
@@ -162,26 +191,17 @@ func (r *GameRoomData) HandleStartGameMessage(target string, room simplysocket.R
 	})
 
 	time.Sleep(1 * time.Second)
-	clist := []*ClientProps{}
+	r.updateClientTurnList()
+
 	r.mu.RLock()
-	for slug, props := range r.ClientProperties {
-		temp := &ClientProps{
-			Color: props.Color,
-			Name:  props.Name,
-			Score: props.Score,
-			Slug:  slug,
-		}
-		clist = append(clist, temp)
-	}
+	clist := make([]*ClientProps, len(r.ClientTurnList))
+	copy(clist, r.ClientTurnList)
 	r.mu.RUnlock()
-	sort.Slice(clist[:], func(i, j int) bool {
-		return clist[i].Slug < clist[j].Slug
-	})
-	r.ClientTurnList = clist
+
 	room.BroadcastMessage(&simplysocket.Message{
-		Action: "message-by-bot",
+		Action: ActionByBot,
 		Target: target,
-		Sender: "bot-of-the-room",
+		Sender: BotSender,
 		MessageBody: map[string]interface{}{
 			"message":     "Okay giving you 10 seconds ⌛ to communicate with each other your textbox and send button will be activated then will start the match ",
 			"timer":       10,
@@ -206,10 +226,10 @@ func (r *GameRoomData) handleRoomSettings(message *simplysocket.Message, room si
 	r.mu.Unlock()
 	log.Printf("Room settings updated: PlayerLimit=%d, Endtime=%d", r.PlayerLimit, r.Endtime)
 	room.BroadcastMessage(&simplysocket.Message{
-		Action:         "room-setting-applied",
+		Action:         ActionRoomSettingApplied,
 		Target:         message.Target,
 		MessageBody:    map[string]interface{}{"message": "Room settings applied successfully Player Limit:- " + message.MessageBody["player_limit"].(string) + " Time duration :-" + message.MessageBody["game_duration"].(string)},
-		Sender:         "bot-of-the-room",
+		Sender:         BotSender,
 		IsTargetClient: false,
 	})
 }
@@ -240,7 +260,7 @@ func (r *GameRoomData) handleAttemptWord(message *simplysocket.Message, room sim
 
 func (r *GameRoomData) ClientListNotify(clientsinroom []string, room simplysocket.Room, server simplysocket.MeshServer) {
 
-	if clientsinroom[0] == "client-left-room" {
+	if clientsinroom[0] == ActionClientLeftRoom {
 		log.Printf("Client %s left room", clientsinroom[2])
 		r.removefromclientlist(clientsinroom[2])
 		r.mu.Lock()
@@ -260,12 +280,12 @@ func (r *GameRoomData) ClientListNotify(clientsinroom []string, room simplysocke
 	}
 
 	room.BroadcastMessage(&simplysocket.Message{
-		Action: "client-list-notify",
+		Action: ActionClientListNotify,
 		Target: clientsinroom[1],
 		MessageBody: map[string]interface{}{
 			"clientsinroomessage": r.ClientTurnList,
 		},
-		Sender:         "Gawd",
+		Sender:         BotName,
 		IsTargetClient: false,
 	})
 }
@@ -275,16 +295,17 @@ func (r *GameRoomData) endGameDueToPlayerLeft(room simplysocket.Room) {
 	r.HasGameEnded = true
 	r.GameEnded <- true
 	room.BroadcastMessage(&simplysocket.Message{
-		Action:      "send-message",
+		Action:      ActionSendMessage,
 		MessageBody: map[string]interface{}{"message": "Game ended successfully due to rest players left🍾 "},
 		Target:      room.GetRoomSlugInfo(),
-		Sender:      "bot-of-the-room",
+		Sender:      BotSender,
 	})
-	time.Sleep(690 * time.Millisecond)
-	r.sendGameEndStats(room)
+	time.Sleep(PostGameDelay)
+	message := "Game ended successfully due to you are only left to play 🍾 "
+	r.sendGameEndStats(room, message)
 }
 
-func (r *GameRoomData) sendGameEndStats(room simplysocket.Room) {
+func (r *GameRoomData) sendGameEndStats(room simplysocket.Room, message string) {
 	clientList := r.ClientTurnList
 
 	sort.Slice(clientList[:], func(i, j int) bool {
@@ -295,10 +316,10 @@ func (r *GameRoomData) sendGameEndStats(room simplysocket.Room) {
 		wordlist = append(wordlist, words)
 	}
 	room.BroadcastMessage(&simplysocket.Message{
-		Action:      "room-bot-end-game",
-		MessageBody: map[string]interface{}{"message": "Game ended successfully due to you are only left to play 🍾 ", "client_list": clientList, "word_list": wordlist},
+		Action:      ActionRoomBotEndGame,
+		MessageBody: map[string]interface{}{"message": message, "client_list": clientList, "word_list": wordlist},
 		Target:      room.GetRoomSlugInfo(),
-		Sender:      "bot-of-the-room",
+		Sender:      BotSender,
 	})
 }
 
@@ -324,7 +345,7 @@ func (r *GameRoomData) updateClientTurnList() {
 }
 
 func (r *GameRoomData) startChatTimer(target string, room simplysocket.Room, server simplysocket.MeshServer) {
-	firsturn := time.After(10 * time.Second)
+	firsturn := time.After(ChatTimerDuration)
 	for {
 		select {
 		case <-firsturn:
@@ -333,12 +354,12 @@ func (r *GameRoomData) startChatTimer(target string, room simplysocket.Room, ser
 			r.mu.Lock()
 			clist := r.ClientTurnList
 			r.WhichClientTurn = clist[0]
-			r.Letter = "w"
+			r.Letter = InitialLetter
 			r.mu.Unlock()
 			room.BroadcastMessage(&simplysocket.Message{
-				Action: "message-by-bot",
+				Action: ActionByBot,
 				Target: target,
-				Sender: "bot-of-the-room",
+				Sender: BotSender,
 				MessageBody: map[string]interface{}{
 					"message":         "Cool Cool , Enough of talking start the show <br><b>" + clist[0].Name + "<small>@" + clist[0].Slug + "</small></b> <br> start with letter <b>W</b> <br>Time starts now 10 seconds ⌛",
 					"clientstats":     clist,
@@ -358,24 +379,24 @@ func (r *GameRoomData) startChatTimer(target string, room simplysocket.Room, ser
 
 func (r *GameRoomData) KnowTheClient(clientsinroom []string, room simplysocket.Room, server simplysocket.MeshServer) {
 	room.BroadcastMessage(&simplysocket.Message{
-		Action: "know-yourself",
+		Action: ActionKnowYourself,
 		Target: clientsinroom[2],
 		MessageBody: map[string]interface{}{
 			"sender": clientsinroom[2],
 		},
-		Sender:         "bot-of-the-room",
+		Sender:         BotSender,
 		IsTargetClient: true,
 	})
 }
 
 func (r *GameRoomData) GotRandomRoom(clientsinroom []string, room simplysocket.Room, server simplysocket.MeshServer) {
 	room.BroadcastMessage(&simplysocket.Message{
-		Action: "found-random-room-notify",
+		Action: ActionFoundRandomRoom,
 		Target: clientsinroom[2],
 		MessageBody: map[string]interface{}{
 			"roomname": clientsinroom[1],
 		},
-		Sender:         "bot-of-the-room",
+		Sender:         BotSender,
 		IsTargetClient: true,
 	})
 }
@@ -383,7 +404,7 @@ func (r *GameRoomData) GotRandomRoom(clientsinroom []string, room simplysocket.R
 func (r *GameRoomData) JoinRoomNotify(clientsinroom []string, room simplysocket.Room, server simplysocket.MeshServer) {
 
 	room.BroadcastMessage(&simplysocket.Message{
-		Action: "join-room-notify",
+		Action: ActionJoinRoomNotify,
 		Target: clientsinroom[1],
 		MessageBody: map[string]interface{}{
 			"newmessage": fmt.Sprintf("%s joined the room cowgame by mesh", clientsinroom[2]),
@@ -394,10 +415,10 @@ func (r *GameRoomData) JoinRoomNotify(clientsinroom []string, room simplysocket.
 
 	if clientsinroom[2] == room.GetRoomMakerInfo() {
 		room.BroadcastMessage(&simplysocket.Message{
-			Action:         "is-room-maker",
+			Action:         ActionIsRoomMaker,
 			Target:         clientsinroom[2],
 			MessageBody:    map[string]interface{}{"message": clientsinroom[2]},
-			Sender:         "bot-of-the-room",
+			Sender:         BotSender,
 			IsTargetClient: true,
 		})
 	}
@@ -405,7 +426,7 @@ func (r *GameRoomData) JoinRoomNotify(clientsinroom []string, room simplysocket.
 
 func (r *GameRoomData) TurnTheGameTimer(room simplysocket.Room, server simplysocket.MeshServer) {
 
-	endtime := time.After(10 * time.Second)
+	endtime := time.After(TurnTimerDuration)
 	go func() {
 		for {
 			select {
@@ -413,13 +434,14 @@ func (r *GameRoomData) TurnTheGameTimer(room simplysocket.Room, server simplysoc
 				if !r.processTurnTimeout(room) {
 					return
 				}
-				endtime = time.After(11 * time.Second)
+				endtime = time.After(NextTurnTimerDuration)
 
 			case wordguessedbyclient := <-r.TurnAttempted:
 				if !r.processTurnAttempt(wordguessedbyclient, room) {
 					return
 				}
-				endtime = time.After(11 * time.Second)
+				endtime = time.After(NextTurnTimerDuration)
+
 			case <-room.RoomStopped():
 				log.Println("start timer routine stopped cause room is stopped")
 				return
@@ -436,10 +458,10 @@ func (r *GameRoomData) processTurnTimeout(room simplysocket.Room) bool {
 	r.Rounds += 1
 	log.Println("the turn in room ", room.GetRoomSlugInfo(), " ended round", r.Rounds)
 	room.BroadcastMessage(&simplysocket.Message{
-		Action:      "send-message",
+		Action:      ActionSendMessage,
 		MessageBody: map[string]interface{}{"message": "Game turn ended successfully 🍾 "},
 		Target:      room.GetRoomSlugInfo(),
-		Sender:      "bot-of-the-room",
+		Sender:      BotSender,
 	})
 
 	r.mu.RLock()
@@ -464,18 +486,18 @@ func (r *GameRoomData) processTurnTimeout(room simplysocket.Room) bool {
 	room.BroadcastMessage(&simplysocket.Message{
 		Target:      room.GetRoomSlugInfo(),
 		MessageBody: map[string]interface{}{"message": resmessage, "whichclientturn": nextplayer, "clientstats": r.ClientTurnList, "letter": r.Letter, "timer": 11},
-		Action:      "message-by-bot",
-		Sender:      "bot-of-the-room",
+		Action:      ActionByBot,
+		Sender:      BotSender,
 	})
 	return true
 }
 
 func (r *GameRoomData) processTurnAttempt(wordguessedbyclient []string, room simplysocket.Room) bool {
 	room.BroadcastMessage(&simplysocket.Message{
-		Action:      "send-message",
+		Action:      ActionSendMessage,
 		MessageBody: map[string]interface{}{"message": "Game turn ended successfully 🍾 "},
 		Target:      room.GetRoomSlugInfo(),
-		Sender:      "bot-of-the-room",
+		Sender:      BotSender,
 	})
 
 	r.Rounds += 1
@@ -505,28 +527,28 @@ func (r *GameRoomData) processTurnAttempt(wordguessedbyclient []string, room sim
 
 	time.Sleep(1 * time.Second)
 	room.BroadcastMessage(&simplysocket.Message{
-		Action:      "message-by-bot",
+		Action:      ActionByBot,
 		MessageBody: map[string]interface{}{"message": resmessage, "whichclientturn": nextplayer, "clientstats": r.ClientTurnList, "letter": r.Letter, "timer": 11},
 		Target:      room.GetRoomSlugInfo(),
-		Sender:      "bot-of-the-room",
+		Sender:      BotSender,
 	})
 	return true
 }
 
 func (r *GameRoomData) generateResponseMessage(status, guessedword string, currentplayer, nextplayer *ClientProps) string {
 	switch status {
-	case "word-correct":
+	case WordCorrect:
 		r.Letter = string(guessedword[len(guessedword)-1]) //correct then new letter
 		r.mu.Lock()
 		r.WhichClientTurn.Score += 1
 		r.Wordslist[guessedword] = true //add it to our word list
 		r.mu.Unlock()
 		return fmt.Sprintf("Bravo correct word guessed by <b>%v<small>@%v</small></b> now <b>%v<small>@%v</small></b> <br> start with letter <b>%v</b> <br>Time starts now 11 seconds ⌛", currentplayer.Name, currentplayer.Slug, nextplayer.Name, nextplayer.Slug, r.Letter)
-	case "wrong-letter":
+	case WrongLetter:
 		return fmt.Sprintf("Word starts with wrong letter <b>%v<small>@%v</small></b> now <b>%v<small>@%v</small></b> <br> start with letter <b>%v</b> <br>Time starts now 11 seconds ⌛", currentplayer.Name, currentplayer.Slug, nextplayer.Name, nextplayer.Slug, r.Letter)
-	case "no-such-word":
+	case NoSuchWord:
 		return fmt.Sprintf("No such word exisists in our dictionary guessed by <b>%v<small>@%v</small></b> now <b>%v<small>@%v</small></b> <br> start with letter <b>%v</b> <br>Time starts now 11 seconds ⌛", currentplayer.Name, currentplayer.Slug, nextplayer.Name, nextplayer.Slug, r.Letter)
-	case "word-reused":
+	case WordReused:
 		return fmt.Sprintf("This word is already guessed  <b>%v<small>@%v</small></b> so not helpfull now <b>%v<small>@%v</small></b> <br> start with letter <b>%v</b> <br>Time starts now 11 seconds ⌛", currentplayer.Name, currentplayer.Slug, nextplayer.Name, nextplayer.Slug, r.Letter)
 	default:
 		return fmt.Sprintf("Unknown error by <b>%v<small>@%v</small></b> now <b>%v<small>@%v</small></b> <br> start with letter <b>%v</b> <br>Time starts now 11 seconds ⌛",
@@ -544,27 +566,14 @@ func (r *GameRoomData) EndTheGameTimer(room simplysocket.Room, server simplysock
 			r.HasGameEnded = true
 			r.GameEnded <- true
 			room.BroadcastMessage(&simplysocket.Message{
-				Action:      "send-message",
+				Action:      ActionSendMessage,
 				MessageBody: map[string]interface{}{"message": "Game ended successfully 🍾 "},
 				Target:      room.GetRoomSlugInfo(),
-				Sender:      "bot-of-the-room",
+				Sender:      BotSender,
 			})
-			time.Sleep(690 * time.Millisecond)
-			clist := r.ClientTurnList
-
-			sort.Slice(clist[:], func(i, j int) bool {
-				return clist[i].Score > clist[j].Score
-			})
-			wordlist := []string{}
-			for words := range r.Wordslist {
-				wordlist = append(wordlist, words)
-			}
-			room.BroadcastMessage(&simplysocket.Message{
-				Action:      "room-bot-end-game",
-				MessageBody: map[string]interface{}{"message": "Game ended successfully 🍾 ", "client_list": clist, "word_list": wordlist},
-				Target:      room.GetRoomSlugInfo(),
-				Sender:      "bot-of-the-room",
-			})
+			time.Sleep(PostGameDelay)
+			message := "Game ended successfully 🍾 "
+			r.sendGameEndStats(room, message)
 			return
 		case <-room.RoomStopped():
 			log.Println("start timer routine stopped cause room is stopped")
