@@ -61,3 +61,7 @@ Dev Branch :- https://github.com/DhruvikDonga/wordsbattle/tree/WB-8
 
 - [@Dhruvik D.](https://www.github.com/DhruvikDonga)
 
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=DhruvikDonga/wordsbattle&type=Date)](https://www.star-history.com/#DhruvikDonga/wordsbattle&Date)
+
