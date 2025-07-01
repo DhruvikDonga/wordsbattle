@@ -1,16 +1,27 @@
 package game
 
+import "strings"
+
 var Worddictionary = map[string]bool{}
 
+const (
+	WrongLetter = "wrong-letter"
+	NoSuchWord  = "no-such-word"
+	WordReused  = "word-reused"
+	WordCorrect = "word-correct"
+)
+
 func MatchWord(word string, wordslist map[string]bool, startletter byte) string {
-	if word[0] != startletter {
-		return "wrong-letter"
+	word = strings.TrimSpace(word)
+
+	if word == "" || word[0] != startletter {
+		return WrongLetter
 	}
-	if _, ok := Worddictionary[word]; !ok {
-		return "no-such-word"
+	if !Worddictionary[word] {
+		return NoSuchWord
 	}
-	if _, ok := wordslist[word]; ok { // word has been re used
-		return "word-reused"
+	if wordslist[word] { // word has been re used
+		return WordReused
 	}
-	return "word-correct"
+	return WordCorrect
 }
